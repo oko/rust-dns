@@ -1,0 +1,5 @@
+[package]
+
+name = "dns"
+version = "0.0.1"
+authors = ["Jacob Okamoto <okam0013@umn.edu>"]
