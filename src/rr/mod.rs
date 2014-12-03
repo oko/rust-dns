@@ -1,3 +1,5 @@
+//! Resource record handling module.
+
 use std::rand;
 
 mod rrtypes;
@@ -310,10 +312,8 @@ impl TTL {
 	}
 }
 #[cfg(test)]
-mod test {
+mod test_rrtype {
     use super::RRType;
-	use super::TTL;
-    use super::RRClass;
     
     /// Quick and dirty u16 match checking.
     #[test]
@@ -431,6 +431,11 @@ mod test {
             assert!(RRType::Reserved == RRType::from_u16(val));
         }
     }
+}
+
+#[cfg(test)]
+mod test_rrclass {
+    use super::RRClass;
 
     #[test]
     fn test_rrclass_value() {
@@ -476,7 +481,12 @@ mod test {
             assert!(RRClass::RESERVED == RRClass::from_u16(val));
         }
     }
+}
 
+#[cfg(test)]
+mod test_ttl {
+	use super::TTL;
+	
     #[test]
     fn test_ttl_value() {
     	let ttl = TTL(600i32);
