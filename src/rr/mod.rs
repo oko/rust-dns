@@ -1,6 +1,6 @@
 use std::rand;
 
-mod rrtype;
+mod rrtypes;
 
 #[repr(u16)]
 #[deriving(PartialEq,Show)]
