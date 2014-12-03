@@ -1,5 +1,4 @@
 use super::{RRType, RRClass, TTL};
-use std::io::net::ip::IpAddr;
 use std::fmt;
 
 pub struct RR {
@@ -173,7 +172,7 @@ impl RData for AAAA {
 
 #[cfg(test)]
 mod test_a {
-    use super::{A, AAAA, RData};
+    use super::{A, RData};
 
     #[test]
     fn test_rr_a_create() {
@@ -225,7 +224,7 @@ mod test_a {
 
 #[cfg(test)]
 mod test_aaaa {
-    use super::{A, AAAA, RData};
+    use super::{AAAA, RData};
     #[test]
     fn test_rr_aaaa_create() {
         let rec = AAAA { address: [0x2001, 0x0db8, 0xac10, 0xfe01, 0x0, 0x0, 0x0, 0x0] };
