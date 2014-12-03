@@ -4,3 +4,4 @@
 extern crate serialize;
 
 mod rr;
+mod msg;
