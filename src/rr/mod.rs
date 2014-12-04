@@ -328,7 +328,7 @@ impl TTL {
 #[cfg(test)]
 mod test_rrtype {
     use super::RRType;
-    
+
     /// Quick and dirty u16 match checking.
     #[test]
     fn test_rrtype_value() {
@@ -345,96 +345,99 @@ mod test_rrtype {
     #[test]
     fn test_rrtype_identity() {
         let defined_rrtypes = [
-							    1u16,
-							    2u16,
-							    5u16,
-							    6u16,
-							    11u16,
-							    12u16,
-							    13u16,
-							    14u16,
-							    15u16,
-							    16u16,
-							    17u16,
-							    18u16,
-							    19u16,
-							    20u16,
-							    21u16,
-							    22u16,
-							    23u16,
-							    24u16,
-							    25u16,
-							    26u16,
-							    27u16,
-							    28u16,
-							    29u16,
-							    31u16,
-							    32u16,
-							    33u16,
-							    34u16,
-							    35u16,
-							    36u16,
-							    37u16,
-							    39u16,
-							    40u16,
-							    41u16,
-							    42u16,
-							    43u16,
-							    44u16,
-							    45u16,
-							    46u16,
-							    47u16,
-							    48u16,
-							    49u16,
-							    50u16,
-							    51u16,
-							    52u16,
-							    55u16,
-							    56u16,
-							    57u16,
-							    58u16,
-							    59u16,
-							    60u16,
-							    61u16,
-							    99u16,
-							    100u16,
-							    101u16,
-							    102u16,
-							    103u16,
-							    104u16,
-							    105u16,
-							    106u16,
-							    107u16,
-							    108u16,
-							    109u16,
-							    249u16,
-							    250u16,
-							    251u16,
-							    252u16,
-							    253u16,
-							    255u16,
-							    256u16,
-							    257u16,
-							    32768u16,
-							    32769u16,
-							];
+                                1u16,
+                                2u16,
+                                5u16,
+                                6u16,
+                                11u16,
+                                12u16,
+                                13u16,
+                                14u16,
+                                15u16,
+                                16u16,
+                                17u16,
+                                18u16,
+                                19u16,
+                                20u16,
+                                21u16,
+                                22u16,
+                                23u16,
+                                24u16,
+                                25u16,
+                                26u16,
+                                27u16,
+                                28u16,
+                                29u16,
+                                31u16,
+                                32u16,
+                                33u16,
+                                34u16,
+                                35u16,
+                                36u16,
+                                37u16,
+                                39u16,
+                                40u16,
+                                41u16,
+                                42u16,
+                                43u16,
+                                44u16,
+                                45u16,
+                                46u16,
+                                47u16,
+                                48u16,
+                                49u16,
+                                50u16,
+                                51u16,
+                                52u16,
+                                55u16,
+                                56u16,
+                                57u16,
+                                58u16,
+                                59u16,
+                                60u16,
+                                61u16,
+                                99u16,
+                                100u16,
+                                101u16,
+                                102u16,
+                                103u16,
+                                104u16,
+                                105u16,
+                                106u16,
+                                107u16,
+                                108u16,
+                                109u16,
+                                249u16,
+                                250u16,
+                                251u16,
+                                252u16,
+                                253u16,
+                                255u16,
+                                256u16,
+                                257u16,
+                                32768u16,
+                                32769u16,
+                                65535u16,
 
+                            ];
+        let skip = RRType::Reserved as u16;
         // Fuzz all 65536 values possible for QTYPE
         'rng: for val_u in range(0, 65536u) {
+            if (val_u as u16) == skip {
+                continue 'rng;
+            }
             let val: u16 = val_u as u16;
             'defs: for &defval in defined_rrtypes.iter() {
                 // Do some checks on defined QTYPEs
                 if defval == val {
                     // Make sure it doesn't translate to reserved
                     assert!(RRType::Reserved != RRType::from_u16(val));
-
                     // Make sure converstion from-to-from u16
                     // has the same result.
                     let from_u16 = RRType::from_u16(val);
                     let to_u16 = from_u16 as u16;
                     assert!(from_u16 == RRType::from_u16(to_u16));
                     assert!(to_u16 == RRType::to_u16(from_u16));
-
                     // If we're good, we can stop checking
                     // the defined QTYPEs list and go to the
                     // next value.
