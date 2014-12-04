@@ -260,71 +260,6 @@ impl RRType {
     }
 }
 
-#[repr(u16)]
-#[deriving(PartialEq,Show)]
-pub enum RRClass {
-	IN = 1,
-	CH = 3,
-	HS = 4,
-	NONE = 254,
-	ANY = 255,
-	Reserved = 0,
-}
-
-impl RRClass {
-	pub fn from_u16(u16val: u16) -> RRClass {
-		match u16val {
-			1 => RRClass::IN,
-			3 => RRClass::CH,
-			4 => RRClass::HS,
-			254 => RRClass::NONE,
-			255 => RRClass::ANY,
-			_ => RRClass::Reserved,
-		}
-	}
-
-	pub fn to_u16(class: RRClass) -> u16 {
-		class as u16
-	}
-}
-
-pub struct TTL(i32);
-
-impl TTL {
-	/// Generate a TTL of one-half hour (30 minutes).
-	pub fn half_hour() -> TTL {
-		TTL(1800)
-	}
-	/// Generate a TTL of one (1) hour.
-	pub fn one_hour() -> TTL {
-		TTL(3600)
-	}
-	/// Generate a TTL of one (1) day.
-	pub fn one_day() -> TTL {
-		TTL(3600*24)
-	}
-	/// Generate a TTL of one (1) week.
-	pub fn one_week() -> TTL {
-		TTL(3600*24*7)
-	}
-	/// Generate a TTL of one (1) month (30 days).
-	pub fn one_month() -> TTL {
-		TTL(3600*24*30)
-	}
-	// Add an offset of *t* seconds where 0 < *t* <= 60
-	// to a TTL.
-	pub fn random_offset(ttl: TTL) -> TTL {
-		let TTL(ival) = ttl;
-		let shift = if ival > 30 {
-			30
-		} else {
-			0
-		};
-		TTL(ival - shift + (
-			(rand::random::<u16>() % 60) as i32
-			) + 1)
-	}
-}
 #[cfg(test)]
 mod test_rrtype {
     use super::RRType;
@@ -432,12 +367,14 @@ mod test_rrtype {
                 if defval == val {
                     // Make sure it doesn't translate to reserved
                     assert!(RRType::Reserved != RRType::from_u16(val));
+
                     // Make sure converstion from-to-from u16
                     // has the same result.
                     let from_u16 = RRType::from_u16(val);
                     let to_u16 = from_u16 as u16;
                     assert!(from_u16 == RRType::from_u16(to_u16));
                     assert!(to_u16 == RRType::to_u16(from_u16));
+
                     // If we're good, we can stop checking
                     // the defined QTYPEs list and go to the
                     // next value.
@@ -448,6 +385,72 @@ mod test_rrtype {
             assert!(RRType::Reserved == RRType::from_u16(val));
         }
     }
+}
+
+#[repr(u16)]
+#[deriving(PartialEq,Show)]
+pub enum RRClass {
+	IN = 1,
+	CH = 3,
+	HS = 4,
+	NONE = 254,
+	ANY = 255,
+	Reserved = 0,
+}
+
+impl RRClass {
+	pub fn from_u16(u16val: u16) -> RRClass {
+		match u16val {
+			1 => RRClass::IN,
+			3 => RRClass::CH,
+			4 => RRClass::HS,
+			254 => RRClass::NONE,
+			255 => RRClass::ANY,
+			_ => RRClass::Reserved,
+		}
+	}
+
+	pub fn to_u16(class: RRClass) -> u16 {
+		class as u16
+	}
+}
+
+pub struct TTL(i32);
+
+impl TTL {
+	/// Generate a TTL of one-half hour (30 minutes).
+	pub fn half_hour() -> TTL {
+		TTL(1800)
+	}
+	/// Generate a TTL of one (1) hour.
+	pub fn one_hour() -> TTL {
+		TTL(3600)
+	}
+	/// Generate a TTL of one (1) day.
+	pub fn one_day() -> TTL {
+		TTL(3600*24)
+	}
+	/// Generate a TTL of one (1) week.
+	pub fn one_week() -> TTL {
+		TTL(3600*24*7)
+	}
+	/// Generate a TTL of one (1) month (30 days).
+	pub fn one_month() -> TTL {
+		TTL(3600*24*30)
+	}
+	// Add an offset of *t* seconds where 0 < *t* <= 60
+	// to a TTL.
+	pub fn random_offset(ttl: TTL) -> TTL {
+		let TTL(ival) = ttl;
+		let shift = if ival > 30 {
+			30
+		} else {
+			0
+		};
+		TTL(ival - shift + (
+			(rand::random::<u16>() % 60) as i32
+			) + 1)
+	}
 }
 
 #[cfg(test)]
