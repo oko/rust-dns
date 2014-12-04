@@ -1,14 +1,6 @@
 use super::{RRType, RRClass, TTL};
 use std::fmt;
 
-pub struct RR {
-    pub name: Vec<String>,
-    pub rrtype: RRType,
-    pub rrclass: RRClass,
-    pub ttl: TTL,
-    pub rdata: Vec<u8>,
-}
-
 trait RData {
     fn to_rdata(&self) -> Vec<u8>;
     fn from_rdata(&[u8], _ignored: Option<Self>) -> Result<Self, &'static str>;
