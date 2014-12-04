@@ -7,7 +7,7 @@ pub enum OpCode {
     Unassigned = 3,
     Notify     = 4,
     Update     = 5,
-
+    
 }
 
 impl OpCode {
@@ -21,7 +21,7 @@ impl OpCode {
             3 => OpCode::Unassigned,
             4 => OpCode::Notify,
             5 => OpCode::Update,
-
+            
             _ => OpCode::Unassigned,
         }
     }
@@ -36,21 +36,21 @@ impl OpCode {
             "Unassigned" => OpCode::Unassigned,
             "Notify"     => OpCode::Notify,
             "Update"     => OpCode::Update,
-
+            
             _ => OpCode::Unassigned,
         }
     }
-
+    
 }
 
 #[cfg(test)]
 mod test_opcode {
     use super::OpCode;
-
+    
     /// Quick and dirty u8 match checking.
     #[test]
     fn test_opcode_value() {
-
+        
         let qt = OpCode::Query;
         match qt as u8 {
             0 =>    assert!(true),
@@ -70,7 +70,7 @@ mod test_opcode {
                                 3u8,
                                 4u8,
                                 5u8,
-
+                                
                             ];
         let skip = OpCode::Unassigned as u8;
         // Fuzz all 65536 values possible for QTYPE

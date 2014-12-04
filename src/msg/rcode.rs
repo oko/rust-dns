@@ -20,7 +20,7 @@ pub enum RCode {
     BADALG   = 21,
     BADTRUNC = 22,
     Reserved = 65535,
-
+    
 }
 
 impl RCode {
@@ -47,7 +47,7 @@ impl RCode {
             21    => RCode::BADALG,
             22    => RCode::BADTRUNC,
             65535 => RCode::Reserved,
-
+            
             _ => RCode::Reserved,
         }
     }
@@ -75,11 +75,11 @@ impl RCode {
             "BADALG"   => RCode::BADALG,
             "BADTRUNC" => RCode::BADTRUNC,
             "Reserved" => RCode::Reserved,
-
+            
             _ => RCode::Reserved,
         }
     }
-
+    
     pub fn get_description(variant: RCode) -> &'static str {
         match variant {
             RCode::NoError  => "No Error",
@@ -101,7 +101,7 @@ impl RCode {
             RCode::BADALG   => "Algorithm not supported",
             RCode::BADTRUNC => "Bad Truncation",
             RCode::Reserved => "",
-
+            
         }
     }
 }
@@ -109,11 +109,11 @@ impl RCode {
 #[cfg(test)]
 mod test_rcode {
     use super::RCode;
-
+    
     /// Quick and dirty u16 match checking.
     #[test]
     fn test_rcode_value() {
-
+        
         let qt = RCode::NoError;
         match qt as u16 {
             0 =>    assert!(true),
@@ -146,7 +146,7 @@ mod test_rcode {
                                 21u16,
                                 22u16,
                                 65535u16,
-
+                                
                             ];
         let skip = RCode::Reserved as u16;
         // Fuzz all 65536 values possible for QTYPE

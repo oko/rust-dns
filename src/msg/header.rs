@@ -2,7 +2,7 @@ pub use super::rcode::RCode;
 pub use super::opcode::OpCode;
 
 pub struct Header {
-	id: u16,
+	pub id: u16,
 	flags: u16,
 	qdcount: u16,
 	ancount: u16,
