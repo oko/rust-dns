@@ -1,10 +1,7 @@
-use super::{RRType, RRClass, TTL};
 use std::fmt;
+use std::io;
 
-trait RData {
-    fn to_rdata(&self) -> Vec<u8>;
-    fn from_rdata(&[u8], _ignored: Option<Self>) -> Result<Self, &'static str>;
-}
+pub use super::RData;
 
 /// DNS A record
 #[deriving(PartialEq,Eq)]
@@ -39,14 +36,12 @@ impl RData for A {
         }
         rdata
     }
-    fn from_rdata(rdata: &[u8], _ignored: Option<A>) -> Result<A, &'static str> {
-        let rlen = rdata.len();
-        if rlen == 4 {
-            Ok(A { address: [rdata[0], rdata[1], rdata[2], rdata[3]] })
-        } else if rlen < 4 {
-            Err("rdata too small for A record")
-        } else {
-            Err("rdata too large for A record")
+    fn from_rdata(rdata: &mut [u8], _ignored: Option<A>) -> Result<A, &'static str> {
+        let mut reader = io::BufReader::new(rdata);
+        let result = reader.read_be_u32();
+        match result {
+            Ok(ival) => Ok(A { address: [(ival >> 24) as u8, (ival >> 16) as u8, (ival >> 8) as u8, (ival & 0xFF) as u8], }),
+            Err(msg) => Err("Read error"),
         }
     }
 }
@@ -146,19 +141,19 @@ impl RData for AAAA {
         }
         rdata
     }
-    fn from_rdata(rdata: &[u8], _ignored: Option<AAAA>) -> Result<AAAA, &'static str> {
-        let rlen = rdata.len();
-        if rlen == 16 {
-            let mut data = [0u16, ..8];
-            for i in range(0, 8u) {
-                data[i] = ((rdata[2*i] as u16) << 8) + (rdata[(2*i)+1] as u16);
-            }
-            Ok(AAAA { address: data, })
-        } else if rlen < 16 {
-            Err("rdata too small for AAAA record")
-        } else {
-            Err("rdata too large for AAAA record")
+    fn from_rdata(rdata: &mut [u8], _ignored: Option<AAAA>) -> Result<AAAA, &'static str> {
+        let mut reader = io::BufReader::new(rdata);
+        let mut data = [0u16, ..8];
+        let mut i = 0u;
+        while i < 8 {
+             let result = reader.read_be_u16();
+             match result {
+                Ok(ival) => data[i] = ival,
+                Err(msg) => return Err("Read error"),
+             }
+             i += 1;
         }
+        Ok(AAAA { address: data })
     }
 }
 
@@ -207,9 +202,9 @@ mod test_a {
     fn test_rr_a_from_rdata() {
         let rec = A::new(192, 168, 0, 1);
         let output = rec.to_rdata();
-        let compare = vec!(192u8, 168, 0, 1);
+        let mut compare = vec!(192u8, 168, 0, 1);
 
-        let rec_new = RData::from_rdata(compare.as_slice(), None::<A>).ok().unwrap();
+        let rec_new = RData::from_rdata(compare.as_mut_slice(), None::<A>).ok().unwrap();
         assert_eq!(rec_new, rec);
     }
 }
@@ -296,9 +291,9 @@ mod test_aaaa {
 
         let rec = AAAA::new([0x0123, 0x4567, 0x89ab, 0xcdef, 0x0123, 0x4567, 0x89ab, 0xcdef]);
         let output = rec.to_rdata();
-        let compare = vec!(0x01u8, 0x23u8, 0x45u8, 0x67u8, 0x89u8, 0xabu8, 0xcdu8, 0xefu8, 0x01u8, 0x23u8, 0x45u8, 0x67u8, 0x89u8, 0xabu8, 0xcdu8, 0xefu8);
+        let mut compare = vec!(0x01u8, 0x23u8, 0x45u8, 0x67u8, 0x89u8, 0xabu8, 0xcdu8, 0xefu8, 0x01u8, 0x23u8, 0x45u8, 0x67u8, 0x89u8, 0xabu8, 0xcdu8, 0xefu8);
 
-        let rec_new = RData::from_rdata(compare.as_slice(), None::<AAAA>).ok().unwrap();
+        let rec_new = RData::from_rdata(compare.as_mut_slice(), None::<AAAA>).ok().unwrap();
         assert_eq!(rec_new, rec);
     }
 }
