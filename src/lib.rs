@@ -3,5 +3,7 @@
 
 extern crate serialize;
 
-mod rr;
-mod msg;
+pub use errors::IdentifierError;
+
+pub mod errors;
+pub mod types;
