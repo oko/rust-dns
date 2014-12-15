@@ -4,4 +4,4 @@
 
 A DNS library for the [Rust](http://rust-lang.org) language.
 
-Sample client code is located in `src/bin/testclient.rs`.
+Sample client code is located in `src/bin/testclient.rs`. There is currently no write support, so it sends a captured sample packet doing a recursive `A`-record lookup for `facebook.com`, parses the response, and prints out an `fmt::Show` view of the response.
