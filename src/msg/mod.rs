@@ -3,19 +3,24 @@ pub use super::number::classes::Class;
 pub use super::number::rcodes::RCode;
 pub use super::number::opcodes::OpCode;
 pub use super::number::errors::IdentifierError;
-pub use super::name::Name;
+pub use super::name::{Name,DNSNameReader};
+pub use super::number::DNSNumberReader;
 
-use self::record::{Question,ResourceRecord};
+use self::record::{Question,ResourceRecord,DNSResourceRecordReader,DNSQuestionReader};
+use std::io;
 
-mod record;
 
+pub mod record;
+pub mod recordtypes;
+
+#[deriving(Show,Clone)]
 pub struct Message {
-    id: u16,
-    flags: u16,
-    questions: Vec<Question>,
-    answers: Vec<ResourceRecord>,
-    nameservers: Vec<ResourceRecord>,
-    additionals: Vec<ResourceRecord>,
+    pub id: u16,
+    pub flags: u16,
+    pub questions: Vec<Question>,
+    pub answers: Vec<ResourceRecord>,
+    pub nameservers: Vec<ResourceRecord>,
+    pub additionals: Vec<ResourceRecord>,
 }
 
 static HFLAG_MASK_QR: u16 = 0x8000;
@@ -84,11 +89,53 @@ impl Message {
     pub fn response_code(&self) -> Result<RCode, IdentifierError> {
         RCode::from_u16(self.flags & HFLAG_MASK_RCODE)
     }
+    pub fn from_buf(buf: &[u8]) -> io::IoResult<Message> {
+        let mut reader = io::BufReader::new(buf);
+        let mut message = Message { id: 0, flags: 0, questions: Vec::new(), answers: Vec::new(), nameservers: Vec::new(), additionals: Vec::new() };
+        message.id = try!(reader.read_be_u16());
+        message.flags = try!(reader.read_be_u16());
+
+        let message_qc = try!(reader.read_be_u16());
+        let message_rc = try!(reader.read_be_u16());
+        let message_nc = try!(reader.read_be_u16());
+        let message_ac = try!(reader.read_be_u16());
+
+        for i in range(0, message_qc) { message.questions.push(Question::new()); }
+        for i in range(0, message_rc) { message.answers.push(ResourceRecord::new()); }
+        for i in range(0, message_nc) { message.nameservers.push(ResourceRecord::new()); }
+        for i in range(0, message_ac) { message.additionals.push(ResourceRecord::new()); }
+
+        drop(reader);
+        Ok(message)
+    }
+}
+
+pub trait DNSMessageReader {
+    fn read_dns_message(&mut self) -> io::IoResult<Message>;
+}
+impl<'a> DNSMessageReader for io::BufReader<'a> {
+    fn read_dns_message(&mut self) -> io::IoResult<Message> {
+        let mut message = Message { id: 0, flags: 0, questions: Vec::new(), answers: Vec::new(), nameservers: Vec::new(), additionals: Vec::new() };
+        message.id = try!(self.read_be_u16());
+        message.flags = try!(self.read_be_u16());
+
+        let message_qc = try!(self.read_be_u16());
+        let message_rc = try!(self.read_be_u16());
+        let message_nc = try!(self.read_be_u16());
+        let message_ac = try!(self.read_be_u16());
+
+        for i in range(0, message_qc) { message.questions.push(try!(self.read_dns_question())); }
+        for i in range(0, message_rc) { message.answers.push(try!(self.read_dns_resource_record())); }
+        for i in range(0, message_nc) { message.nameservers.push(try!(self.read_dns_resource_record())); }
+        for i in range(0, message_ac) { message.additionals.push(try!(self.read_dns_resource_record())); }
+        Ok(message)
+    }
 }
 
 #[cfg(test)]
 mod test_message {
-    use super::{Message,OpCode,RCode};
+    use super::{DNSMessageReader,Message,OpCode,RCode};
+    use std::io;
     #[test]
     fn test_flags_from_u16() {
         let f = Message { id: 0x1234, flags: 0x8180, questions: Vec::new(), answers: Vec::new(), nameservers: Vec::new(), additionals: Vec::new() };
@@ -107,6 +154,21 @@ mod test_message {
     #[test]
     fn test_flags_to_u16() {
         let m = Message::new(0x1234, false, OpCode::Query, false, false, true, true, false, false, RCode::NoError);
+        assert_eq!(m.flags, 0x8180);
+    }
+    #[test]
+    fn test_from_buf() {
+        let buf = [0xbu8, 0x8d, 0x81, 0x80, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x8, 0x66, 0x61, 0x63, 0x65, 0x62, 0x6f, 0x6f, 0x6b, 0x3, 0x63, 0x6f, 0x6d
+, 0x0, 0x0, 0x1, 0x0, 0x1, 0xc0, 0xc, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x3, 0x30, 0x0, 0x4, 0xad, 0xfc, 0x78, 0x6];
+
+        let mut r = io::BufReader::new(&buf);
+        let m = match r.read_dns_message() {
+            Ok(msg) => msg,
+            Err(e) => {
+                println!("{}", e);
+                return;
+            }
+        };
         assert_eq!(m.flags, 0x8180);
     }
 }
