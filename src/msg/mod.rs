@@ -8,7 +8,7 @@ pub use super::number::DNSNumberReader;
 
 use self::record::{Question,ResourceRecord,DNSResourceRecordReader,DNSQuestionReader};
 use std::io;
-
+use std::collections::hash_map::HashMap;
 
 pub mod record;
 pub mod recordtypes;
@@ -29,7 +29,7 @@ static HFLAG_MASK_TC: u16 = 0x0200;
 static HFLAG_MASK_RD: u16 = 0x0100;
 static HFLAG_MASK_RA: u16 = 0x0080;
 static HFLAG_MASK_OPCODE: u16 = 0x7800;
-static HFLAG_MASK_Z: u16 = 0x0040;
+//static HFLAG_MASK_Z: u16 = 0x0040; // Currently unused
 static HFLAG_MASK_AD: u16 = 0x0020;
 static HFLAG_MASK_CD: u16 = 0x0010;
 static HFLAG_MASK_RCODE: u16 = 0x000F;
@@ -129,6 +129,16 @@ impl<'a> DNSMessageReader for io::BufReader<'a> {
         for i in range(0, message_nc) { message.nameservers.push(try!(self.read_dns_resource_record())); }
         for i in range(0, message_ac) { message.additionals.push(try!(self.read_dns_resource_record())); }
         Ok(message)
+    }
+}
+
+pub trait DNSMessageWriter {
+    fn write_dns_message(&mut self, message: &Message) -> io::IoResult<()>;
+}
+impl<'a> DNSMessageWriter for io::BufWriter<'a> {
+    fn write_dns_message(&mut self, message: &Message) -> io::IoResult<()> {
+        let pointer_map: HashMap<Name,uint> = HashMap::new();
+        Ok(())
     }
 }
 

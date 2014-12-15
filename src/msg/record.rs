@@ -123,7 +123,7 @@ impl<'a> DNSResourceRecordReader for io::BufReader<'a> {
              Type::PTR
              => {
                 let n = try!(self.read_dns_name());
-                n.push_bytes(&mut record.rdata);
+                try!(n.push_bytes(&mut record.rdata));
             },
             _ => {
                 try!(self.push(record.rdlen as uint, &mut record.rdata));

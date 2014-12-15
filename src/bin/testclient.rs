@@ -1,3 +1,5 @@
+#![allow(dead_code,unused_imports,unused_must_use,unused_assignments)]
+
 extern crate dns;
 
 use std::io::net::udp::UdpSocket;
@@ -6,7 +8,7 @@ use std::io::BufReader;
 use std::rand;
 
 use dns::msg::{DNSMessageReader,Message};
-use dns::msg::record::{Question,ResourceRecord};
+//use dns::msg::record::{Question,ResourceRecord};
 use dns::number;
 
 fn main() {
@@ -33,8 +35,8 @@ fn main() {
     }
     let mut buf = [0u8, ..65507];
 
-    let tx_id = rand::random::<u16>();
-    let mut msg = Message::new(tx_id, true, number::OpCode::Query, false, false, true, false, false, false, number::RCode::NoError);
+    //let tx_id = rand::random::<u16>();
+    //let mut msg = Message::new(tx_id, true, number::OpCode::Query, false, false, true, false, false, false, number::RCode::NoError);
     let snd_buf = [0xb,0x8d,0x1,0x0,0x0,0x1,0x0,0x0,0x0,0x0,0x0,0x0,0x8,0x66,0x61,0x63,0x65,0x62,0x6f,0x6f,0x6b,0x3,0x63,0x6f,0x6d,0x0,0x0,0x1,0x0,0x1];
     let snd_sa = SocketAddr { ip: Ipv4Addr(8, 8, 8, 8), port: 53 };
     socket.send_to(&snd_buf, snd_sa);

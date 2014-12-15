@@ -1,7 +1,9 @@
+#![allow(dead_code)]
+
 extern crate dns;
 
 use dns::msg::{Message,DNSMessageReader,Name};
-use dns::msg::record::ResourceRecord;
+
 use std::io;
 
 fn check_std_query_recursive(m: &Message) {
@@ -38,22 +40,14 @@ fn test_parse_fb1_rq() {
     let rq = include_bin!("packets/fb1-rq.bin");
     let m = Message::from_buf(rq).ok().unwrap();
     assert_eq!(m.id, 0x0b8d);
-    assert_eq!(m.flags, 0x0100);
-    assert_eq!(m.questions.len(), 1);
-    assert_eq!(m.answers.len(), 0);
-    assert_eq!(m.nameservers.len(), 0);
-    assert_eq!(m.additionals.len(), 0);
+    check_std_query_recursive(&m);
 }
 #[test]
 fn test_parse_fb1_rs() {
     let rs = include_bin!("packets/fb1-rs.bin");
     let m = Message::from_buf(rs).ok().unwrap();
     assert_eq!(m.id, 0x0b8d);
-    assert_eq!(m.flags, 0x8180);
-    assert_eq!(m.questions.len(), 1);
-    assert_eq!(m.answers.len(), 1);
-    assert_eq!(m.nameservers.len(), 0);
-    assert_eq!(m.additionals.len(), 0);
+    check_std_response_recursive(&m, 1, 1, 0, 0);
 }
 
 #[test]
@@ -79,7 +73,7 @@ fn test_parse_net1_rq() {
 fn test_parse_net1_rs() {
     let rs = include_bin!("packets/net1-rs.bin");
     let mut r = io::BufReader::new(rs);
-    let mut m = r.read_dns_message().ok().unwrap();
+    let m = r.read_dns_message().ok().unwrap();
 
     assert_eq!(m.id, 0xe1c9);
     check_std_response_norecurse(&m, 1, 0, 13, 15);
