@@ -1,6 +1,6 @@
 use std::error;
 
-#[deriving(PartialEq,Show)]
+#[deriving(PartialEq,Show,Clone)]
 pub enum IdentifierError {
 	ReservedIdentifierError(i64),
 	UnassignedIdentifierError(i64),
