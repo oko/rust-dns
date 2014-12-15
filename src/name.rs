@@ -10,6 +10,40 @@ impl Name {
     pub fn new() -> Name {
         Name { labels: Vec::new() }
     }
+    pub fn parse_decompressed(buf: &[u8]) -> io::IoResult<Name> {
+        let mut labels: Vec<String> = Vec::new();
+        let mut reader = io::BufReader::new(buf);
+        loop {
+            let llen = try!(reader.read_u8());
+            if llen == 0 {
+                break;
+            } else {
+                let str_read = String::from_utf8(try!(reader.read_exact(llen as uint)));
+                match str_read {
+                    Ok(s) => labels.push(s),
+                    Err(_) => return Err(io::standard_error(io::InvalidInput)),
+                }
+            }
+        }
+        Ok(Name { labels: labels })
+    }
+    pub fn to_bytes(&self) -> io::IoResult<Vec<u8>> {
+        let mut vec: Vec<u8> = Vec::new();
+        for l in self.labels.iter() {
+            try!(vec.write_u8(l.len() as u8));
+            try!(vec.write_str(l.as_slice()));
+        }
+        try!(vec.write_u8(0));
+        Ok(vec)
+    }
+    pub fn push_bytes(&self, vec: &mut Vec<u8>) -> io::IoResult<()> {
+        for l in self.labels.iter() {
+            try!(vec.write_u8(l.len() as u8));
+            try!(vec.write_str(l.as_slice()));
+        }
+        try!(vec.write_u8(0));
+        Ok(())
+    }
 }
 impl fmt::Show for Name {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

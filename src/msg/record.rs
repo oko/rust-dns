@@ -62,12 +62,12 @@ pub enum ResourceRecordError {
 
 #[deriving(PartialEq,Show,Clone)]
 pub struct ResourceRecord {
-    rname: Name,
-    rtype: Type,
-    rclass: Class,
-    rttl: i32,
-    rdlen: u16,
-    rdata: Vec<u8>,
+    pub rname: Name,
+    pub rtype: Type,
+    pub rclass: Class,
+    pub rttl: i32,
+    pub rdlen: u16,
+    pub rdata: Vec<u8>,
 }
 impl ResourceRecord {
     pub fn new() -> ResourceRecord {
@@ -113,7 +113,23 @@ impl<'a> DNSResourceRecordReader for io::BufReader<'a> {
             rdlen: try!(self.read_be_u16()),
             rdata: Vec::new(),
         };
-        try!(self.push(record.rdlen as uint, &mut record.rdata));
+        match record.rtype {
+            Type::CNAME |
+             Type::MB |
+             Type::MD |
+             Type::MG |
+             Type::MR |
+             Type::NS |
+             Type::PTR
+             => {
+                let n = try!(self.read_dns_name());
+                n.push_bytes(&mut record.rdata);
+            },
+            _ => {
+                try!(self.push(record.rdlen as uint, &mut record.rdata));
+            },
+        }
+        
         Ok(record)
     }
 
