@@ -1,7 +1,7 @@
 pub use super::IdentifierError;
 
 #[repr(u16)]
-#[deriving(PartialEq,Show)]
+#[deriving(PartialEq,Show,Clone)]
 pub enum EDNS0OptionCode {
     LLQ = 1,
     UL = 2,
@@ -52,7 +52,6 @@ mod test_edns0optioncode {
         assert_eq!(EDNS0OptionCode::N3U, EDNS0OptionCode::from_u16(7).ok().unwrap());
         assert_eq!(EDNS0OptionCode::EdnsClientSubnet, EDNS0OptionCode::from_u16(8).ok().unwrap());
         assert_eq!(EDNS0OptionCode::EDNS, EDNS0OptionCode::from_u16(9).ok().unwrap());
-        
     }
 
     #[test]
