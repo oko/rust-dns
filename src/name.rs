@@ -56,14 +56,16 @@ impl Name {
         try!(vec.write_u8(0));
         Ok(())
     }
+
+    /// Generate a vector of Name objects containing
     pub fn gen_suffixes(&self) -> Vec<Name> {
         let mut output: Vec<Name> = Vec::new();
+        let mut clone = self.clone();
 
         for i in range(0, output.len() - 1) {
-            let mut new_name = self.clone();
-            match new_name.labels.remove(0) {
+            match clone.labels.remove(0) {
                 Some(_) => {
-                    output.push(new_name);
+                    output.push(clone.clone());
                     continue;
                 },
                 None => {
@@ -135,5 +137,52 @@ impl<'a> DNSNameReader for io::BufReader<'a> {
         }
 
         Ok(Name { labels: labels })
+    }
+}
+
+#[cfg(test)]
+mod test_dns_name_reader {
+    use std::io;
+    use super::DNSNameReader;
+
+    static NET1_RS: &'static [u8] = include_bin!("../tests/packets/net1-rs.bin");
+
+    #[test]
+    fn test_read_name() {
+        let mut r = io::BufReader::new(NET1_RS);
+
+        // Regular pointerless read (first name in packet)
+        r.seek(0x0C, io::SeekStyle::SeekSet).ok();
+        let l1 = r.read_dns_name().ok().unwrap();
+        assert_eq!(l1.labels.len(), 1);
+        assert_eq!(l1.labels[0].as_slice(), "net");
+    }
+    #[test]
+    fn test_read_single_ptr_follow() {
+        let mut r = io::BufReader::new(NET1_RS);
+
+        // Single pointer follow (second name in packet)
+        r.seek(0x21, io::SeekStyle::SeekSet).ok();
+        let l2 = r.read_dns_name().ok().unwrap();
+        assert_eq!(l2.labels.len(), 3);
+        assert_eq!(l2.labels[0].as_slice(), "m");
+        assert_eq!(l2.labels[1].as_slice(), "gtld-servers");
+        assert_eq!(l2.labels[2].as_slice(), "net");
+    }
+    #[test]
+    fn test_read_multi_ptr_follow() {
+        let mut r = io::BufReader::new(NET1_RS);
+
+        // Multi-pointer follow (nth name in packet)
+        r.seek(0x5e, io::SeekStyle::SeekSet).ok();
+        let l2 = r.read_dns_name().ok().unwrap();
+        assert_eq!(l2.labels.len(), 3);
+        assert_eq!(l2.labels[0].as_slice(), "j");
+        assert_eq!(l2.labels[1].as_slice(), "gtld-servers");
+        assert_eq!(l2.labels[2].as_slice(), "net");
+        // Test seek restoration after multi-pointer follow
+        let l1 = r.read_dns_name().ok().unwrap();
+        assert_eq!(l1.labels.len(), 1);
+        assert_eq!(l1.labels[0].as_slice(), "net");
     }
 }
