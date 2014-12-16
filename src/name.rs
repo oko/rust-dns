@@ -15,7 +15,7 @@ impl Name {
 
     /// Parse a byte slice containing an already-decompressed name.
     pub fn parse_decompressed(buf: &[u8]) -> io::IoResult<Name> {
-        let mut labels: Vec<String> = Vec::new();
+        let mut labels: Vec<String> = Vec::with_capacity(10);
         let mut reader = io::BufReader::new(buf);
         loop {
             let llen = try!(reader.read_u8());
