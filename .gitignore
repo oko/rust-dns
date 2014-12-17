@@ -4,3 +4,5 @@ __pycache__
 *.pyc
 *.pyo
 .DS_Store
+src/bin/benchmark*
+Makefile

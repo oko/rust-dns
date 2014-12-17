@@ -89,17 +89,24 @@ pub fn read_dns_message<'b>(buf: &'b [u8]) -> io::IoResult<Message<'b>> {
     Ok(msg)
 }
 
+#[inline(always)]
 fn read_dns_question<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<Question<'b>> {
-    let q = Question {
+    let mut q = Question {
         qname: try!(read_dns_name(buf, idx)),
-        qtype: match Type::from_u16(_read_be_u16(buf, idx)) {
-            Ok(val) => val,
-            Err(_) => return Err(io::standard_error(io::InvalidInput)),
-        },
-        qclass: match Class::from_u16(_read_be_u16(buf, idx)) {
-            Ok(val) => val,
-            Err(_) => return Err(io::standard_error(io::InvalidInput)),
-        },
+        qtype: Type::A,
+        qclass: Class::IN,
+    };
+    // Check bounds before reading fixed-length question data
+    if *idx + 4 > buf.len() {
+        return Err(io::standard_error(io::InvalidInput));
+    }
+    q.qtype = match Type::from_u16(_read_be_u16(buf, idx)) {
+        Ok(val) => val,
+        Err(_) => return Err(io::standard_error(io::InvalidInput)),
+    };
+    q.qclass = match Class::from_u16(_read_be_u16(buf, idx)) {
+        Ok(val) => val,
+        Err(_) => return Err(io::standard_error(io::InvalidInput)),
     };
     Ok(q)
 }
@@ -107,39 +114,68 @@ fn read_dns_question<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<Question
 fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<ResourceRecord<'b>> {
     let mut r = ResourceRecord {
         rname: try!(read_dns_name(buf, idx)),
-        rtype: match Type::from_u16(_read_be_u16(buf, idx)) {
-            Ok(val) => val,
-            Err(_) => return Err(io::standard_error(io::InvalidInput)),
-        },
-        rclass: match Class::from_u16(_read_be_u16(buf, idx)) {
-            Ok(val) => val,
-            Err(_) => return Err(io::standard_error(io::InvalidInput)),
-        },
-        rttl: _read_be_i32(buf, idx),
-        rdlen: _read_be_u16(buf, idx),
+        rtype: Type::A,
+        rclass: Class::IN,
+        rttl: 0,
+        rdlen: 0,
         rdata: *idx,
         context: buf,
     };
+    // Check bounds before reading fixed-length RR data
+    if *idx + 10 >= buf.len() {
+        return Err(io::standard_error(io::InvalidInput));
+    }
+    r.rtype = match Type::from_u16(_read_be_u16(buf, idx)) {
+        Ok(val) => val,
+        Err(_) => return Err(io::standard_error(io::InvalidInput)),
+    };
+    r.rclass = match Class::from_u16(_read_be_u16(buf, idx)) {
+        Ok(val) => val,
+        Err(_) => return Err(io::standard_error(io::InvalidInput)),
+    };
+    r.rttl = _read_be_i32(buf, idx);
+    r.rdlen = _read_be_u16(buf, idx);
+    r.rdata = *idx;
     *idx += r.rdlen as uint;
+    // Check bounds of RDLEN/RDATA against buffer size
+    if *idx > buf.len() {
+        return Err(io::standard_error(io::InvalidInput));
+    }
     Ok(r)
 }
 
+#[inline(always)]
 fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<Name<'b>> {
+    // Pre-check bounds (min 1 byte for root label)
+    if *idx + 1 > buf.len() {
+        return Err(io::standard_error(io::InvalidInput));
+    }
 
     let mut labels: Vec<&str> = Vec::with_capacity(8);
 
     let mut follow = false;
     let mut return_to = 0u;
+    let mut pcount = 0u;
+    let blen = buf.len();
     // Read in labels
     loop {
+        // Check bounds for next label
+        if *idx + 1 > buf.len() {
+            return Err(io::standard_error(io::InvalidInput));
+        }
         // Get the next label's size
         let llen = buf[*idx];
+        // Get offset (clear upper 2 bits of label size)
+        let offset = 1 + ((llen & 0x3F) as uint);
 
-        if llen == 0 {
+        if llen == 0 || pcount > 255 {
             // Zero length labels are the root, so we're done
 
+            // If we've gone through more than 255 pointers something
+            // isn't right and we should bail.
+
             break;
-        } else if (llen & 0xC0) == 0xC0 {
+        } else if (llen & 0xC0) == 0xC0 && (*idx + 1) < blen {
             // Labels with the two high order bits set (0xC0)
             // are pointers.
 
@@ -149,12 +185,14 @@ fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<Name<'b>> {
                 return_to = *idx+2;
                 follow = true;
             }
+            pcount += 1;
 
             // Seek to the pointer location
             *idx = buf[*idx+1] as uint;
             continue;
+        } else if (*idx + offset) >= blen {
+            return Err(io::standard_error(io::InvalidInput));
         } else {
-            let offset = 1 + (llen as uint);
             let str_read = str::from_utf8(buf[*idx+1..*idx+offset]);
             *idx += offset;
             match str_read {
@@ -226,5 +264,10 @@ mod test_hp {
             if n.as_slice() == "m.gtld-servers.net." { a_ct += 1; }
         }
         assert_eq!(a_ct, 13);
+    }
+
+    #[test]
+    fn test_bounds_checks() {
+        let m = read_dns_message(NET1_RS[0..NET1_RS.len()-2]).err();
     }
 }
