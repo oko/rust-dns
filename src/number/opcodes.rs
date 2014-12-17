@@ -1,7 +1,7 @@
 pub use super::IdentifierError;
 
 #[repr(u8)]
-#[deriving(PartialEq,Show,Clone)]
+#[deriving(PartialEq,Show,Copy,Clone)]
 pub enum OpCode {
     Query = 0,
     IQuery = 1,

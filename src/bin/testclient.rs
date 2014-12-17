@@ -1,4 +1,5 @@
 #![allow(dead_code,unused_imports,unused_must_use,unused_assignments)]
+#![feature(slicing_syntax)]
 
 extern crate dns;
 
@@ -7,9 +8,7 @@ use std::io::net::ip::{Ipv4Addr, SocketAddr};
 use std::io::BufReader;
 use std::rand;
 
-use dns::msg::{DNSMessageReader,Message};
-//use dns::msg::record::{Question,ResourceRecord};
-use dns::number;
+use dns::hp::{Message,Name,read_dns_message};
 
 fn main() {
     let mut socket: UdpSocket;
@@ -40,14 +39,14 @@ fn main() {
     let snd_buf = [0xb,0x8d,0x1,0x0,0x0,0x1,0x0,0x0,0x0,0x0,0x0,0x0,0x8,0x66,0x61,0x63,0x65,0x62,0x6f,0x6f,0x6b,0x3,0x63,0x6f,0x6d,0x0,0x0,0x1,0x0,0x1];
     let snd_sa = SocketAddr { ip: Ipv4Addr(8, 8, 8, 8), port: 53 };
     socket.send_to(&snd_buf, snd_sa);
-    println!("Sent packet");
-
+    println!("Request to {}", snd_sa);
     match socket.recv_from(&mut buf) {
-        Ok((_,_)) => {
-            let mut r = BufReader::new(&buf);
-            println!("{}", r.read_dns_message());
-        }
-        Err(e) => println!("Couldn't receive a datagram: {}", e)
+        Ok((amt, src)) => {
+            let m = read_dns_message(buf[0..amt]);
+            println!("Response from {}:\n{}", src, m);
+        },
+        Err(e) => println!("Couldn't receive a datagram: {}", e),
     }
+
     drop(socket);
 }
