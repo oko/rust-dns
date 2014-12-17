@@ -10,7 +10,7 @@ pub struct Question {
 }
 
 impl Question {
-    pub fn new() -> Question{
+    pub fn new() -> Question {
         Question {
             qname: Name::new(),
             qtype: Type::A,
@@ -32,6 +32,8 @@ impl<'a> DNSQuestionReader for io::BufReader<'a> {
         Ok(question)
     }
 }
+
+#[deriving(PartialEq,Eq,Show,Copy,Clone)]
 pub enum ResourceRecordError {
     DataFormatError,
     DataSizeError,
@@ -107,7 +109,7 @@ pub trait ResourceRecordDataType {
     fn to_u8_vec(&self) -> Vec<u8>;
 }
 
-#[deriving(PartialEq,Show,Clone)]
+#[deriving(PartialEq,Show,Clone,Copy)]
 pub struct A {
     address: [u8, ..4],
 }

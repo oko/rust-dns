@@ -120,7 +120,7 @@ fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<R
         rdata: *idx,
         context: buf,
     };
-    *idx += (r.rdlen as uint);
+    *idx += r.rdlen as uint;
     Ok(r)
 }
 
@@ -186,27 +186,6 @@ mod test_hp {
     use super::Name;
     static NET1_RS: &'static [u8] = include_bin!("../../tests/packets/net1-rs.bin");
 
-    fn check_std_query_recursive(m: &Message) {
-        assert_eq!(m.flags, 0x0100);
-        assert_eq!(m.questions.len(), 1);
-        assert_eq!(m.answers.len(), 0);
-        assert_eq!(m.nameservers.len(), 0);
-        assert_eq!(m.additionals.len(), 0);
-    }
-    fn check_std_query_norecurse(m: &Message) {
-        assert_eq!(m.flags, 0x0000);
-        assert_eq!(m.questions.len(), 1);
-        assert_eq!(m.answers.len(), 0);
-        assert_eq!(m.nameservers.len(), 0);
-        assert_eq!(m.additionals.len(), 0);
-    }
-    fn check_std_response_recursive(m: &Message, q: uint, a: uint, n: uint, x: uint) {
-        assert_eq!(m.flags, 0x8180);
-        assert_eq!(m.questions.len(), q);
-        assert_eq!(m.answers.len(), a);
-        assert_eq!(m.nameservers.len(), n);
-        assert_eq!(m.additionals.len(), x);
-    }
     fn check_std_response_norecurse(m: &Message, q: uint, a: uint, n: uint, x: uint) {
         assert_eq!(m.flags, 0x8000);
         assert_eq!(m.questions.len(), q);

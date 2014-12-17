@@ -4,8 +4,6 @@ extern crate dns;
 
 use dns::hp::{Message,Name,read_dns_message};
 
-use std::io;
-
 static NET1_RS: &'static [u8] = include_bin!("packets/net1-rs.bin");
 static NET1_RQ: &'static [u8] = include_bin!("packets/net1-rq.bin");
 static FB1_RS: &'static [u8] = include_bin!("packets/fb1-rs.bin");
