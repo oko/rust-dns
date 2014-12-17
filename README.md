@@ -9,7 +9,7 @@ Sample client code is located in `src/bin/testclient.rs`. There is currently no 
 There are currently two implementations in the library.
 
 ## `dns::hp`
-Minimal-allocation DNS packet parsing code. With ~500 byte packets (i.e., nameservers and glue records for the .com TLD), the rudimentary benchmark in `src/bin/benchmark.rs` it can handle about 160,000 packets per second with 4 threads on a quad-cord 2012 Retina MacBook Pro.
+Minimal-allocation DNS packet parsing code. With ~500 byte packets (i.e., nameservers and glue records for the .com TLD), a `--release` build of the rudimentary benchmark in `src/bin/benchmark.rs` can handle about 300,000 packets per second with a single thread 2012 Retina MacBook Pro.
 
 This implementation is very narrowly architected for fast parsing, and has no support for constructing packets.
 
