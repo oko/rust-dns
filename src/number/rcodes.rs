@@ -1,7 +1,7 @@
 pub use super::IdentifierError;
 
 #[repr(u16)]
-#[deriving(PartialEq,Show,Clone)]
+#[deriving(PartialEq,Show,Copy,Clone)]
 pub enum RCode {
     NoError = 0,
     FormErr = 1,
