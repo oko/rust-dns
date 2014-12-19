@@ -5,12 +5,16 @@ use std::fmt;
 /// 
 #[deriving(PartialEq,Eq,Hash,Clone)]
 pub struct Name {
-    labels: Vec<String>,
+    pub labels: Vec<String>,
 }
 
 impl Name {
     pub fn new() -> Name {
         Name { labels: Vec::new() }
+    }
+
+    pub fn to_string(&self) -> String {
+        format!("{}", self.labels.connect("."))
     }
 
     /// Parse a byte slice containing an already-decompressed name.
@@ -76,11 +80,20 @@ impl Name {
 
         output
     }
+
+    pub fn reduce(&self) -> Option<(String, Name)> {
+        let mut clone = self.clone();
+        match clone.labels.remove(0) {
+            Some(s) => {
+                Some((s, clone))
+            },
+            None => None,
+        }
+    }
 }
 impl fmt::Show for Name {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "{}", self.labels.connect(".")));
-        write!(f, ".")
+        write!(f, "{}.", self.labels.connect("."))
     }
 }
 

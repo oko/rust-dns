@@ -6,11 +6,24 @@ extern crate dns;
 use std::io::net::udp::UdpSocket;
 use std::io::net::ip::{Ipv4Addr, SocketAddr};
 use std::io::BufReader;
+use std::io;
 use std::rand;
 
 use dns::hp::{Message,Name,read_dns_message};
+use dns::msg;
+use dns::msg::DNSMessageWriter;
+use dns::number;
 
 fn main() {
+
+    let args = std::os::args();
+    let mut domain: &str;
+    if args.len() < 2 {
+        domain = "";
+    } else {
+        domain = args[1].as_slice();
+    }
+
     let mut socket: UdpSocket;
     let mut bind_count = 0u;
     let mut bound = false;
@@ -33,13 +46,26 @@ fn main() {
         if bound { break; }
     }
     let mut buf = [0u8, ..65507];
+    let mut snd_buf = [0u8, ..65507];
 
-    //let tx_id = rand::random::<u16>();
-    //let mut msg = Message::new(tx_id, true, number::OpCode::Query, false, false, true, false, false, false, number::RCode::NoError);
-    let snd_buf = [0xb,0x8d,0x1,0x0,0x0,0x1,0x0,0x0,0x0,0x0,0x0,0x0,0x8,0x66,0x61,0x63,0x65,0x62,0x6f,0x6f,0x6b,0x3,0x63,0x6f,0x6d,0x0,0x0,0x1,0x0,0x1];
+    let tx_id = rand::random::<u16>();
+    let mut msg = msg::Message::new(tx_id, true, number::OpCode::Query, false, false, true, false, false, false, number::RCode::NoError);
+    let mut q = msg::record::Question::new();
+    for s in domain.split('.') {
+        if !s.is_empty() {
+            q.qname.labels.push(String::from_str(s));
+        }
+    }
+    msg.questions.push(q);
+    let size: u64;
+    {
+        let mut w = io::BufWriter::new(&mut snd_buf);
+        size = w.write_dns_message(&msg).ok().unwrap();
+    }
+
     let snd_sa = SocketAddr { ip: Ipv4Addr(8, 8, 8, 8), port: 53 };
-    socket.send_to(&snd_buf, snd_sa);
-    println!("Request to {}", snd_sa);
+    socket.send_to(snd_buf[0..size as uint], snd_sa);
+    println!("Request to {}: txid {}", snd_sa, tx_id);
     match socket.recv_from(&mut buf) {
         Ok((amt, src)) => {
             let m = read_dns_message(buf[0..amt]);

@@ -216,6 +216,9 @@ fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<Name<'b>> {
     Ok(Name { labels: labels })
 }
 
+// Basic unit tests for `dns::hp`.
+// Fuzzing-based tests are in `src/bin/test_fuzz.rs`.
+
 #[cfg(test)]
 mod test_hp {
     
