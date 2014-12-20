@@ -11,6 +11,7 @@ use std::fmt;
 use self::util::{_read_be_u16,_read_be_i32};
 
 mod util;
+mod err;
 
 #[deriving(PartialEq,Show,Clone)]
 pub struct Message<'n> {
@@ -49,7 +50,7 @@ impl<'n> Name<'n> {
     pub fn to_string(&self) -> String {
         format!("{}.", self.labels.connect("."))
     }
-    pub fn from_rdata<'r>(rr: &'r ResourceRecord) -> io::IoResult<Name<'r>> {
+    pub fn from_rdata<'r>(rr: &'r ResourceRecord) -> Result<Name<'r>, err::ReadError> {
         let mut i = rr.rdata;
         read_dns_name(rr.context, &mut i)
     }
@@ -60,8 +61,10 @@ impl<'n> fmt::Show for Name<'n> {
     }
 }
 
-pub fn read_dns_message<'b>(buf: &'b [u8]) -> io::IoResult<Message<'b>> {
-    if buf.len() < 12 { return Err(io::standard_error(io::InvalidInput)); }
+pub fn read_dns_message<'b>(buf: &'b [u8]) -> Result<Message<'b>, err::ReadError> {
+    if buf.len() < 12 {
+        return Err(err::ReadError::IndexOutOfRangeError(12, buf.len()));
+    }
     let mut i = 0u;
     let id = _read_be_u16(buf, &mut i);
     let flags = _read_be_u16(buf, &mut i);
@@ -90,7 +93,7 @@ pub fn read_dns_message<'b>(buf: &'b [u8]) -> io::IoResult<Message<'b>> {
 }
 
 #[inline(always)]
-fn read_dns_question<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<Question<'b>> {
+fn read_dns_question<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Question<'b>, err::ReadError> {
     let mut q = Question {
         qname: try!(read_dns_name(buf, idx)),
         qtype: Type::A,
@@ -98,20 +101,14 @@ fn read_dns_question<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<Question
     };
     // Check bounds before reading fixed-length question data
     if *idx + 4 > buf.len() {
-        return Err(io::standard_error(io::InvalidInput));
+        return Err(err::ReadError::IndexOutOfRangeError(*idx + 4, buf.len()));
     }
-    q.qtype = match Type::from_u16(_read_be_u16(buf, idx)) {
-        Ok(val) => val,
-        Err(_) => return Err(io::standard_error(io::InvalidInput)),
-    };
-    q.qclass = match Class::from_u16(_read_be_u16(buf, idx)) {
-        Ok(val) => val,
-        Err(_) => return Err(io::standard_error(io::InvalidInput)),
-    };
+    q.qtype = try!(Type::from_u16(_read_be_u16(buf, idx)));
+    q.qclass = try!(Class::from_u16(_read_be_u16(buf, idx)));
     Ok(q)
 }
 
-fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<ResourceRecord<'b>> {
+fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut uint) -> Result<ResourceRecord<'b>, err::ReadError> {
     let mut r = ResourceRecord {
         rname: try!(read_dns_name(buf, idx)),
         rtype: Type::A,
@@ -123,32 +120,26 @@ fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<R
     };
     // Check bounds before reading fixed-length RR data
     if *idx + 10 >= buf.len() {
-        return Err(io::standard_error(io::InvalidInput));
+        return Err(err::ReadError::IndexOutOfRangeError(*idx + 10, buf.len()));
     }
-    r.rtype = match Type::from_u16(_read_be_u16(buf, idx)) {
-        Ok(val) => val,
-        Err(_) => return Err(io::standard_error(io::InvalidInput)),
-    };
-    r.rclass = match Class::from_u16(_read_be_u16(buf, idx)) {
-        Ok(val) => val,
-        Err(_) => return Err(io::standard_error(io::InvalidInput)),
-    };
+    r.rtype = try!(Type::from_u16(_read_be_u16(buf, idx)));
+    r.rclass = try!(Class::from_u16(_read_be_u16(buf, idx)));
     r.rttl = _read_be_i32(buf, idx);
     r.rdlen = _read_be_u16(buf, idx);
     r.rdata = *idx;
     *idx += r.rdlen as uint;
     // Check bounds of RDLEN/RDATA against buffer size
     if *idx > buf.len() {
-        return Err(io::standard_error(io::InvalidInput));
+        return Err(err::ReadError::IndexOutOfRangeError(*idx, buf.len()));
     }
     Ok(r)
 }
 
 #[inline(always)]
-fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<Name<'b>> {
+fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Name<'b>, err::ReadError> {
     // Pre-check bounds (min 1 byte for root label)
     if *idx + 1 > buf.len() {
-        return Err(io::standard_error(io::InvalidInput));
+        return Err(err::ReadError::IndexOutOfRangeError(*idx + 1, buf.len()));
     }
 
     let mut labels: Vec<&str> = Vec::with_capacity(8);
@@ -161,7 +152,7 @@ fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<Name<'b>> {
     loop {
         // Check bounds for next label
         if *idx + 1 > buf.len() {
-            return Err(io::standard_error(io::InvalidInput));
+            return Err(err::ReadError::IndexOutOfRangeError(*idx + 1, buf.len()));
         }
         // Get the next label's size
         let llen = buf[*idx];
@@ -191,7 +182,7 @@ fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<Name<'b>> {
             *idx = buf[*idx+1] as uint;
             continue;
         } else if (*idx + offset) >= blen {
-            return Err(io::standard_error(io::InvalidInput));
+            return Err(err::ReadError::IndexOutOfRangeError(*idx + offset, blen));
         } else {
             let str_read = str::from_utf8(buf[*idx+1..*idx+offset]);
             *idx += offset;
@@ -199,7 +190,7 @@ fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> io::IoResult<Name<'b>> {
                 Some(s) => {
                     labels.push(s);
                 },
-                None => return Err(io::standard_error(io::InvalidInput)),
+                None => return Err(err::ReadError::InvalidUTF8StringError),
             }
         }
     }
