@@ -133,18 +133,109 @@ impl<'a> DNSMessageReader for io::BufReader<'a> {
 }
 
 pub trait DNSMessageWriter {
-    fn write_dns_message(&mut self, message: &Message) -> io::IoResult<()>;
+    fn write_dns_message(&mut self, message: &Message) -> io::IoResult<u64>;
 }
+
 impl<'a> DNSMessageWriter for io::BufWriter<'a> {
-    fn write_dns_message(&mut self, message: &Message) -> io::IoResult<()> {
-        let pointer_map: HashMap<Name,uint> = HashMap::new();
-        Ok(())
+
+    // Prototype implementation. Far too many allocations.
+    // It also has bugs related to zero-length labels and the like.
+    //
+    // TODO: rewrite this entire sucker.
+    fn write_dns_message(&mut self, message: &Message) -> io::IoResult<u64> {
+        let mut pointer_map: HashMap<Name,u64> = HashMap::new();
+        try!(self.write_be_u16(message.id));
+        try!(self.write_be_u16(message.flags));
+        try!(self.write_be_u16(message.questions.len() as u16));
+        try!(self.write_be_u16(message.answers.len() as u16));
+        try!(self.write_be_u16(message.nameservers.len() as u16));
+        try!(self.write_be_u16(message.additionals.len() as u16));
+
+        fn insert(w: &mut io::BufWriter, map: &mut HashMap<Name,u64>, x: &Name) -> io::IoResult<()> {
+            if x.labels.len() == 0 {
+                try!(w.write_u8(0));
+            } else {
+                let mut n = x.clone();
+                loop {
+                    match map.get(&n) {
+                        Some(&y) => {
+                            try!(w.write_u8(0xc0));
+                            try!(w.write_u8(y as u8));
+                            return Ok(());
+                        },
+                        None => {
+                            if n.labels.len() > 0 { map.insert(n.clone(), try!(w.tell())); }
+                            match n.reduce() {
+                                Some((np, nn)) => {
+                                    n = nn;
+                                    try!(w.write_u8(np.len() as u8));
+                                    try!(w.write_str(np.as_slice()));
+                                    continue;
+                                },
+                                None => {
+                                    try!(w.write_u8(0));
+                                    break;
+                                }
+                            };
+                            break;
+                        }
+                    }
+                }
+            }
+            return Ok(());
+        };
+
+        fn write_rr(w: &mut io::BufWriter, map: &mut HashMap<Name,u64>, r: &ResourceRecord) -> io::IoResult<()> {
+            try!(insert(w, map, &r.rname));
+            try!(w.write_be_u16(r.rtype as u16));
+            try!(w.write_be_u16(r.rclass as u16));
+            try!(w.write_be_i32(r.rttl as i32));
+            try!(w.write_be_u16(r.rdlen as u16));
+            match r.rtype {
+                Type::CNAME |
+                 Type::MB |
+                 Type::MD |
+                 Type::MG |
+                 Type::MR |
+                 Type::NS |
+                 Type::PTR
+                 => {
+                    let n = try!(Name::parse_decompressed(r.rdata.as_slice()));
+                    try!(insert(w, map, &n));
+                },
+                _ => {
+                    try!(w.write(r.rdata.as_slice()));
+                },
+            }
+            Ok(())
+        }
+
+        for q in message.questions.iter() {
+            try!(insert(self, &mut pointer_map, &q.qname));
+            try!(self.write_be_u16(q.qtype as u16));
+            try!(self.write_be_u16(q.qclass as u16));
+        }
+
+        for a in message.answers.iter() {
+            try!(write_rr(self, &mut pointer_map, a));
+        }
+
+        for a in message.nameservers.iter() {
+            try!(write_rr(self, &mut pointer_map, a));
+        }
+
+        for a in message.additionals.iter() {
+            try!(write_rr(self, &mut pointer_map, a));
+        }
+
+
+        Ok(try!(self.tell()))
     }
 }
 
 #[cfg(test)]
 mod test_message {
-    use super::{DNSMessageReader,Message,OpCode,RCode};
+    use super::{DNSMessageReader,DNSMessageWriter,Message,OpCode,RCode};
     use std::io;
     #[test]
     fn test_flags_from_u16() {
@@ -167,7 +258,7 @@ mod test_message {
         assert_eq!(m.flags, 0x8180);
     }
     #[test]
-    fn test_from_buf() {
+    fn test_from_to_buf() {
         let buf = [0xbu8, 0x8d, 0x81, 0x80, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x0, 0x0, 0x8, 0x66, 0x61, 0x63, 0x65, 0x62, 0x6f, 0x6f, 0x6b, 0x3, 0x63, 0x6f, 0x6d
 , 0x0, 0x0, 0x1, 0x0, 0x1, 0xc0, 0xc, 0x0, 0x1, 0x0, 0x1, 0x0, 0x0, 0x3, 0x30, 0x0, 0x4, 0xad, 0xfc, 0x78, 0x6];
 
@@ -179,6 +270,16 @@ mod test_message {
                 return;
             }
         };
-        assert_eq!(m.flags, 0x8180);
+        let mut wbuf = [0u8, ..4096];
+        let mut size = 0;
+        {
+            let mut w = io::BufWriter::new(&mut wbuf);
+            size = w.write_dns_message(&m).ok().unwrap();
+        }
+        println!("buf sizes: {}, {}", buf.len(), size);
+        println!("rbuf: {}", buf.as_slice());
+        println!("wbuf: {}", wbuf.slice_to(size as uint));
+        assert_eq!(buf.as_slice(), wbuf.slice_to(size as uint));
+        //assert_eq!(m.flags, 0x8180);
     }
 }
