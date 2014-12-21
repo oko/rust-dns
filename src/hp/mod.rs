@@ -5,6 +5,7 @@ pub use super::number::opcodes::OpCode;
 pub use super::number::errors::IdentifierError;
 
 use std::fmt;
+use std::cmp;
 
 use self::util::{_read_be_u16,_read_be_i32};
 
@@ -55,35 +56,38 @@ impl<'n> Name<'n> {
 }
 impl<'n> fmt::Show for Name<'n> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for l in self.labels.iter() {
-            try!(write!(f, "{}.", l));
+        if self.labels.len() > 0 {
+            for l in self.labels.iter() {
+                try!(write!(f, "{}.", l));
+            }
+            write!(f, "")
+        } else {
+            write!(f, ".")
         }
-        write!(f, "")
     }
 }
 
-#[deriving(PartialEq,Eq,Hash,Clone)]
+#[deriving(Eq,Hash,Clone)]
 pub struct Label<'l> {
     label: &'l [u8],
+}
+
+impl<'l> Label<'l> {
+    fn from_slice(slice: &'l [u8]) -> Result<Label, err::ReadError> {
+        if slice.len() > 63 { return Err(err::ReadError::LabelTooLongError(slice.len())); }
+        if slice.len() == 0 { return Err(err::ReadError::LabelZeroLengthError); }
+        Ok(Label { label: slice, })
+    }
 }
 impl<'l> fmt::Show for Label<'l> {
 
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for c in self.label.iter() {
             match *c {
-                x @ 0x00...0x20 => {
+                x @ 0x00...0x20 | x @ 0x7F...0xFF | x @ 0x2E => {
                     try!(write!(f, "\\{:03}", x));
                 },
-                x @ 0x7F...0xFF => {
-                    try!(write!(f, "\\{:03}", x));
-                },
-                0x2E => {
-                    try!(write!(f, "\\{:03}", 0x2Eu8));
-                },
-                x @ 0x21...0x2D => {
-                    try!(write!(f, "{}", x as char));
-                },
-                x @ 0x2F...0x7E => {
+                x @ 0x21...0x2D | x @ 0x2F...0x7E => {
                     try!(write!(f, "{}", x as char));
                 },
                 _ => {
@@ -92,6 +96,58 @@ impl<'l> fmt::Show for Label<'l> {
             }
         }
         write!(f, "")
+    }
+}
+impl<'l> cmp::PartialEq for Label<'l> {
+    fn eq(&self, other: &Label) -> bool {
+        let sl = self.label.len();
+        let ol = other.label.len();
+        if sl != ol { return false; }
+        for i in range(0, cmp::min(sl, ol)) {
+            match self.label[i] {
+                x @ 0x41...0x5A => {
+                    // Compare uppercase letters case-insensitively
+                    if x == other.label[i] || (x + 32) == other.label[i] { continue; } else { return false; }
+                },
+                x @ 0x61...0x7A => {
+                    // Compare lowercase letters case-insensitively
+                    if x == other.label[i] || (x - 32) == other.label[i] { continue; } else { return false; }
+                },
+                x @ _ => {
+                    // Direct equality for non-alphabetic characters
+                    if x == other.label[i] { continue; } else { return false; }
+                }
+            }
+        }
+        true
+    }
+}
+impl<'l> cmp::PartialOrd for Label<'l> {
+    fn partial_cmp(&self, other: &Label) -> Option<Ordering> {
+        let sl = self.label.len();
+        let ol = other.label.len();
+        for i in range(0, cmp::min(sl, ol)) {
+            if self.label[i] > other.label[i] { return Some(Greater); }
+            if self.label[i] < other.label[i] { return Some(Less); }
+            else { continue; }
+        }
+        if sl > ol { Some(Greater) }
+        else if sl < ol { Some(Less) }
+        else { Some(Equal) }
+    }
+}
+impl<'l> cmp::Ord for Label<'l> {
+    fn cmp(&self, other: &Label) -> Ordering {
+        let sl = self.label.len();
+        let ol = other.label.len();
+        for i in range(0, cmp::min(sl, ol)) {
+            if self.label[i] > other.label[i] { return Greater; }
+            if self.label[i] < other.label[i] { return Less; }
+            else { continue; }
+        }
+        if sl > ol { Greater }
+        else if sl < ol { Less }
+        else { Equal }
     }
 }
 
@@ -220,7 +276,7 @@ fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Name<'b>, err::Rea
         } else {
             let new_label = buf[*idx+1..*idx+offset];
             *idx += offset;
-            labels.push(Label { label: new_label });
+            labels.push(try!(Label::from_slice(new_label)));
         }
     }
 
@@ -237,57 +293,4 @@ fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Name<'b>, err::Rea
 }
 
 #[cfg(test)]
-mod test_hp {
-    
-    use super::read_dns_message;
-    use super::Message;
-    use super::Name;
-    static NET1_RS: &'static [u8] = include_bin!("../../tests/packets/net1-rs.bin");
-
-    fn check_std_response_norecurse(m: &Message, q: uint, a: uint, n: uint, x: uint) {
-        assert_eq!(m.flags, 0x8000);
-        assert_eq!(m.questions.len(), q);
-        assert_eq!(m.answers.len(), a);
-        assert_eq!(m.nameservers.len(), n);
-        assert_eq!(m.additionals.len(), x);
-    }
-
-    #[test]
-    fn test_read_dns_message() {
-        let m = match read_dns_message(NET1_RS) {
-            Ok(x) => x,
-            Err(e) => { println!("err: {}",e); panic!("FAIL"); },
-        };
-        assert_eq!(m.id, 0xe1c9);
-        assert_eq!(m.flags, 0x8000);
-
-        let q = m.questions[0].clone();
-        assert_eq!(format!("{}",q.qname).as_slice(), "net.");
-        check_std_response_norecurse(&m, 1, 0, 13, 15);
-        let mut a_ct: uint = 0;
-        for a in m.nameservers.iter() {
-            assert_eq!(a.rttl, 172800);
-            
-            let n = Name::from_rdata(a).ok().unwrap().to_string();
-            if n.as_slice() == "a.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "b.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "c.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "d.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "e.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "f.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "g.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "h.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "i.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "j.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "k.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "l.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "m.gtld-servers.net." { a_ct += 1; }
-        }
-        assert_eq!(a_ct, 13);
-    }
-
-    #[test]
-    fn test_bounds_checks() {
-        let m = read_dns_message(NET1_RS[0..NET1_RS.len()-2]).err();
-    }
-}
+mod tests;

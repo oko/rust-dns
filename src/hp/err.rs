@@ -5,7 +5,8 @@ use super::IdentifierError;
 pub enum ReadError {
     InvalidIdentifierError(super::IdentifierError),
     IndexOutOfRangeError(uint, uint),
-    InvalidUTF8StringError,
+    LabelTooLongError(uint),
+    LabelZeroLengthError,
 }
 
 impl error::Error for ReadError {
@@ -13,7 +14,8 @@ impl error::Error for ReadError {
         match *self {
             ReadError::InvalidIdentifierError(x) => "Read an invalid identifier",
             ReadError::IndexOutOfRangeError(_, _) => "Index out of range",
-            ReadError::InvalidUTF8StringError => "Invalid UTF-8 string",
+            ReadError::LabelTooLongError(x) => "Label too long",
+            ReadError::LabelZeroLengthError => "Label has zero length"
         }
     }
 
@@ -21,7 +23,9 @@ impl error::Error for ReadError {
         match *self {
             ReadError::InvalidIdentifierError(x) => Some(format!("Read an invalid identifier: {}", x)),
             ReadError::IndexOutOfRangeError(x, y) => Some(format!("Index out of range: {} > {}", x, y)),
-            ReadError::InvalidUTF8StringError => Some(format!("Invalid UTF-8 string")),
+            ReadError::LabelTooLongError(x) => Some(format!("Label was too long: {} > 63", x)),
+            ReadError::LabelZeroLengthError => Some(format!("Label has zero length")),
+
         }
     }
 
