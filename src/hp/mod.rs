@@ -4,8 +4,6 @@ pub use super::number::rcodes::RCode;
 pub use super::number::opcodes::OpCode;
 pub use super::number::errors::IdentifierError;
 
-use std::io;
-use std::str;
 use std::fmt;
 
 use self::util::{_read_be_u16,_read_be_i32};
@@ -43,12 +41,12 @@ pub struct ResourceRecord<'n> {
 
 #[deriving(PartialEq,Eq,Hash,Clone)]
 pub struct Name<'n> {
-    labels: Vec<&'n str>,
+    labels: Vec<Label<'n>>,
 }
 impl<'n> Name<'n> {
     #[inline]
     pub fn to_string(&self) -> String {
-        format!("{}.", self.labels.connect("."))
+        format!("{}", self)
     }
     pub fn from_rdata<'r>(rr: &'r ResourceRecord) -> Result<Name<'r>, err::ReadError> {
         let mut i = rr.rdata;
@@ -57,7 +55,43 @@ impl<'n> Name<'n> {
 }
 impl<'n> fmt::Show for Name<'n> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        for l in self.labels.iter() {
+            try!(write!(f, "{}.", l));
+        }
+        write!(f, "")
+    }
+}
+
+#[deriving(PartialEq,Eq,Hash,Clone)]
+pub struct Label<'l> {
+    label: &'l [u8],
+}
+impl<'l> fmt::Show for Label<'l> {
+
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for c in self.label.iter() {
+            match *c {
+                x @ 0x00...0x20 => {
+                    try!(write!(f, "\\{:03}", x));
+                },
+                x @ 0x7F...0xFF => {
+                    try!(write!(f, "\\{:03}", x));
+                },
+                0x2E => {
+                    try!(write!(f, "\\{:03}", 0x2Eu8));
+                },
+                x @ 0x21...0x2D => {
+                    try!(write!(f, "{}", x as char));
+                },
+                x @ 0x2F...0x7E => {
+                    try!(write!(f, "{}", x as char));
+                },
+                _ => {
+                    return Err(fmt::Error);
+                }, 
+            }
+        }
+        write!(f, "")
     }
 }
 
@@ -142,7 +176,7 @@ fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Name<'b>, err::Rea
         return Err(err::ReadError::IndexOutOfRangeError(*idx + 1, buf.len()));
     }
 
-    let mut labels: Vec<&str> = Vec::with_capacity(8);
+    let mut labels: Vec<Label> = Vec::with_capacity(8);
 
     let mut follow = false;
     let mut return_to = 0u;
@@ -184,14 +218,9 @@ fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Name<'b>, err::Rea
         } else if (*idx + offset) >= blen {
             return Err(err::ReadError::IndexOutOfRangeError(*idx + offset, blen));
         } else {
-            let str_read = str::from_utf8(buf[*idx+1..*idx+offset]);
+            let new_label = buf[*idx+1..*idx+offset];
             *idx += offset;
-            match str_read {
-                Some(s) => {
-                    labels.push(s);
-                },
-                None => return Err(err::ReadError::InvalidUTF8StringError),
-            }
+            labels.push(Label { label: new_label });
         }
     }
 
