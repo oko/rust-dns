@@ -40,6 +40,13 @@ pub struct ResourceRecord<'n> {
     pub context: &'n [u8],
 }
 
+/// A DNS domain name.
+/// 
+/// Domain names consist of a sequence of labels, each between 1 and 63
+/// octets in length, which have a total length of less than 255 octets.
+/// Due to wire format limitations and the implicit terminating root
+/// label, the effective upper limit on name length is less than 255
+/// octets.
 #[deriving(PartialEq,Eq,Hash,Clone)]
 pub struct Name<'n> {
     labels: Vec<Label<'n>>,
@@ -49,6 +56,10 @@ impl<'n> Name<'n> {
     pub fn to_string(&self) -> String {
         format!("{}", self)
     }
+
+    /// Parse a DNS name from the RDATA section of a DNS resource record.
+    /// The `context` field in the `ResourceRecord` struct exists so that
+    /// this function can properly follow pointers.
     pub fn from_rdata<'r>(rr: &'r ResourceRecord) -> Result<Name<'r>, err::ReadError> {
         let mut i = rr.rdata;
         read_dns_name(rr.context, &mut i)
@@ -67,6 +78,10 @@ impl<'n> fmt::Show for Name<'n> {
     }
 }
 
+/// A DNS domain name label.
+///
+/// A label may consist of between 1 and 63 octets of any value `0x00`
+/// to `0xFF`
 #[deriving(Eq,Hash,Clone)]
 pub struct Label<'l> {
     label: &'l [u8],
@@ -81,12 +96,17 @@ impl<'l> Label<'l> {
 }
 impl<'l> fmt::Show for Label<'l> {
 
+    /// Formats a label, escaping non-printing characters and "." as per
+    /// [RFC4343§2.1](https://tools.ietf.org/html/rfc4343#section-2.1)
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for c in self.label.iter() {
             match *c {
+                // Non-printing character ranges are shown as \XXX
+                // where XXX is the char's zero-padded decimal repr
                 x @ 0x00...0x20 | x @ 0x7F...0xFF | x @ 0x2E => {
                     try!(write!(f, "\\{:03}", x));
                 },
+                // Printing character ranges are shown as is
                 x @ 0x21...0x2D | x @ 0x2F...0x7E => {
                     try!(write!(f, "{}", x as char));
                 },
@@ -99,6 +119,9 @@ impl<'l> fmt::Show for Label<'l> {
     }
 }
 impl<'l> cmp::PartialEq for Label<'l> {
+
+    /// Domain names are compared for equality case-insensitively for
+    /// alphabetic characters (`0x41...0x5A`, `0x61...0x71`).
     fn eq(&self, other: &Label) -> bool {
         let sl = self.label.len();
         let ol = other.label.len();
@@ -123,14 +146,22 @@ impl<'l> cmp::PartialEq for Label<'l> {
     }
 }
 impl<'l> cmp::PartialOrd for Label<'l> {
+
+    /// Domain names are compared for ordering based on the ordinal
+    /// values of characters (i.e., 'A' is hex `0x41`, and 'a' is hex `0x61`,
+    /// so 'A' orders before 'a')
     fn partial_cmp(&self, other: &Label) -> Option<Ordering> {
         let sl = self.label.len();
         let ol = other.label.len();
+
+        // Don't try to compare outside bounds if one label is shorter
         for i in range(0, cmp::min(sl, ol)) {
+            // Order by value
             if self.label[i] > other.label[i] { return Some(Greater); }
             if self.label[i] < other.label[i] { return Some(Less); }
             else { continue; }
         }
+        // If 
         if sl > ol { Some(Greater) }
         else if sl < ol { Some(Less) }
         else { Some(Equal) }
@@ -140,7 +171,10 @@ impl<'l> cmp::Ord for Label<'l> {
     fn cmp(&self, other: &Label) -> Ordering {
         let sl = self.label.len();
         let ol = other.label.len();
+
+        // Don't try to compare outside bounds if one label is shorter
         for i in range(0, cmp::min(sl, ol)) {
+            // Order by value.
             if self.label[i] > other.label[i] { return Greater; }
             if self.label[i] < other.label[i] { return Less; }
             else { continue; }
@@ -151,6 +185,7 @@ impl<'l> cmp::Ord for Label<'l> {
     }
 }
 
+/// Read a DNS message from a `&[u8]` buffer.
 pub fn read_dns_message<'b>(buf: &'b [u8]) -> Result<Message<'b>, err::ReadError> {
     if buf.len() < 12 {
         return Err(err::ReadError::IndexOutOfRangeError(12, buf.len()));
@@ -182,6 +217,7 @@ pub fn read_dns_message<'b>(buf: &'b [u8]) -> Result<Message<'b>, err::ReadError
     Ok(msg)
 }
 
+/// Read a single DNS question from a buffer
 #[inline(always)]
 fn read_dns_question<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Question<'b>, err::ReadError> {
     let mut q = Question {
@@ -198,6 +234,8 @@ fn read_dns_question<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Question<'b>, 
     Ok(q)
 }
 
+/// Read a single DNS resource record from a `&[u8]` buffer
+#[inline(always)]
 fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut uint) -> Result<ResourceRecord<'b>, err::ReadError> {
     let mut r = ResourceRecord {
         rname: try!(read_dns_name(buf, idx)),
@@ -225,6 +263,7 @@ fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Resourc
     Ok(r)
 }
 
+/// Read a single DNS name from a `&[u8]` buffer
 #[inline(always)]
 fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Name<'b>, err::ReadError> {
     // Pre-check bounds (min 1 byte for root label)
