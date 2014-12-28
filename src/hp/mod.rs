@@ -6,6 +6,7 @@ pub use super::number::errors::IdentifierError;
 
 use std::fmt;
 use std::cmp;
+use std::str;
 
 use self::util::{_read_be_u16,_read_be_i32};
 
@@ -64,6 +65,14 @@ impl<'n> Name<'n> {
         let mut i = rr.rdata;
         read_dns_name(rr.context, &mut i)
     }
+    fn from_str(s: &'n str) -> Result<Name, err::ReadError> {
+        let mut n = Name { labels: Vec::new() };
+        for x in s.split('.') {
+            if x.len() == 0 { continue; }
+            n.labels.push(try!(Label::from_slice(x.as_bytes())));
+        }
+        Ok(n)
+    }
 }
 impl<'n> fmt::Show for Name<'n> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -74,6 +83,42 @@ impl<'n> fmt::Show for Name<'n> {
             write!(f, "")
         } else {
             write!(f, ".")
+        }
+    }
+}
+impl<'n> cmp::PartialOrd for Name<'n> {
+    fn partial_cmp(&self, other: &Name<'n>) -> Option<Ordering> {
+        println!("START CMP");
+        println!("{} : {}", self, other);
+        let sl = self.labels.len();
+        let ol = other.labels.len();
+        let mut case = Equal;
+        let max_depth = cmp::min(sl, ol);
+        for i in range(1, max_depth + 1) {
+            println!("{} : {}", self.labels[sl - i], other.labels[ol - i]);
+            if self.labels[sl - i] == other.labels[ol - i] {
+                println!("label at -{} eq", i);
+                if self.labels[sl - i] < other.labels[ol - i] {
+                    case = Less;
+                } else if self.labels[sl - i] > other.labels[ol - i] {
+                    case = Greater;
+                } else {
+                    continue;
+                }
+            } else if self.labels[sl - i] < other.labels[ol - i] {
+                println!("label at -{} self smaller", i);
+                return Some(Less);
+            } else if self.labels[sl - i] > other.labels[ol - i] {
+                println!("labels at -{} self larger", i);
+                return Some(Greater);
+            }
+        }
+        if sl > ol {
+            Some(Greater)
+        } else if sl < ol {
+            Some(Less)
+        } else {
+            Some(case)
         }
     }
 }
@@ -153,37 +198,77 @@ impl<'l> cmp::PartialOrd for Label<'l> {
     fn partial_cmp(&self, other: &Label) -> Option<Ordering> {
         let sl = self.label.len();
         let ol = other.label.len();
+        let mut caps = Equal;
 
         // Don't try to compare outside bounds if one label is shorter
         for i in range(0, cmp::min(sl, ol)) {
-            // Order by value
-            if self.label[i] > other.label[i] { return Some(Greater); }
-            if self.label[i] < other.label[i] { return Some(Less); }
-            else { continue; }
+            let sli = self.label[i];
+            let oli = other.label[i];
+            // Strip casing from [a-z] characters for comparison
+            let sll = if 0x61 <= sli && sli <= 0x7A { sli - 32 } else { sli };
+            let oll = if 0x61 <= oli && oli <= 0x7A { oli - 32 } else { oli };
+
+            if sll < oll {
+                return Some(Less);
+            } else if sll > oll {
+                return Some(Greater);
+            } else {
+                if caps == Equal {
+                    if sli < oli {
+                        caps = Less;
+                    } else if sli > oli {
+                        caps = Greater;
+                    }
+                }
+            }
         }
-        // If 
         if sl > ol { Some(Greater) }
         else if sl < ol { Some(Less) }
-        else { Some(Equal) }
+        else { Some(caps) }
     }
 }
-impl<'l> cmp::Ord for Label<'l> {
-    fn cmp(&self, other: &Label) -> Ordering {
-        let sl = self.label.len();
-        let ol = other.label.len();
+// impl<'l> cmp::Ord for Label<'l> {
 
-        // Don't try to compare outside bounds if one label is shorter
-        for i in range(0, cmp::min(sl, ol)) {
-            // Order by value.
-            if self.label[i] > other.label[i] { return Greater; }
-            if self.label[i] < other.label[i] { return Less; }
-            else { continue; }
-        }
-        if sl > ol { Greater }
-        else if sl < ol { Less }
-        else { Equal }
-    }
-}
+//     /// Domain names are compared for ordering based on the ordinal
+//     /// values of characters (i.e., 'A' is hex `0x41`, and 'a' is hex `0x61`,
+//     /// so 'A' orders before 'a')
+//     fn cmp(&self, other: &Label) -> Ordering {
+//         let sl = self.label.len();
+//         let ol = other.label.len();
+
+//         // Don't try to compare outside bounds if one label is shorter
+//         for i in range(0, cmp::min(sl, ol)) {
+//             let sli = self.label[i];
+//             let oli = other.label[i];
+//             // Order by value
+//             match sli {
+//                 x @ 0x61...0x7A => {
+//                     // Compare lowercase letters case-insensitively
+//                     match oli {
+//                         y @ 0x41...0x5A => {
+//                             if (x - 32) < y { return Less; }
+//                             else { return Greater; }
+//                         },
+//                         y @ _ => {
+//                             if x < y { return Less; }
+//                             else if y > x { return Greater; }
+//                             else { continue; }
+//                         }
+//                     }
+//                 },
+//                 _ => {
+//                     if sli > oli { return Greater; }
+//                     else if sli < oli { return Less; }
+//                     else { continue; }
+//                 }
+//             }
+//         }
+//         // If 
+//         if sl > ol { Greater }
+//         else if sl < ol { Less }
+//         else { Equal }
+//     }
+// }
 
 /// Read a DNS message from a `&[u8]` buffer.
 pub fn read_dns_message<'b>(buf: &'b [u8]) -> Result<Message<'b>, err::ReadError> {

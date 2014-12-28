@@ -1,5 +1,7 @@
-use super::read_dns_message;
+use super::{read_dns_message,read_dns_question,read_dns_resource_record,read_dns_name};
 use super::{Message,Name,Label};
+
+use std::str;
 static NET1_RS: &'static [u8] = include_bin!("../../tests/packets/net1-rs.bin");
 
 fn check_std_response_norecurse(m: &Message, q: uint, a: uint, n: uint, x: uint) {
@@ -53,14 +55,140 @@ fn test_label_eq() {
 }
 #[test]
 fn test_label_ord() {
+    let l = Label::from_slice("CAt".as_bytes()).ok().unwrap();
+    let l0 = Label::from_slice("Cat".as_bytes()).ok().unwrap();
     let l1 = Label::from_slice("Cat1".as_bytes()).ok().unwrap();
     let l2 = Label::from_slice("cat1".as_bytes()).ok().unwrap();
     let l3 = Label::from_slice("cat2".as_bytes()).ok().unwrap();
 
     // Test ordering (DNSSEC canonical)
+    assert!(l < l0);
+    assert!(l0 < l1);
     assert!(l1 < l2);
     assert!(l2 < l3);
     assert!(l1 < l3);
+
+    let mut b1 = [0x63u8, 0x61, 0x74, 0x00];
+    let mut b2 = [0x63u8, 0x61, 0x74, 0x01];
+    let mut b3 = [0x63u8, 0x61, 0x74, 0x02];
+    let l1 = Label::from_slice(&b1).ok().unwrap();
+    let l2 = Label::from_slice(&b2).ok().unwrap();
+    let l3 = Label::from_slice(&b3).ok().unwrap();
+
+    // Test ordering (DNSSEC canonical)
+    assert!(l1 < l2);
+    assert!(l2 < l3);
+    assert!(l1 < l3);
+}
+
+#[test]
+fn test_name_ord() {
+    // ---> Begin RFC4034 testcases
+    let n1 = "\x07axample\x00".as_bytes();
+    let n2 = "\x07EXAMPLE\x00".as_bytes();
+    let n3 = "\x01a\x07example\x00".as_bytes();
+    let n4 = "\x08yljkjljk\x01a\x07example\x00".as_bytes();
+    let n5 = "\x01Z\x01a\x07example\x00".as_bytes();
+    let n6 = "\x04zABC\x01a\x07example\x00".as_bytes();
+    let n7 = "\x01z\x07example\x00".as_bytes();
+    let n8 = "\x01\x01\x01z\x07example\x00".as_bytes();
+    let n9 = "\x01*\x01z\x07example\x00".as_bytes();
+    let v = vec!(n1, n2, n3, n4, n5, n6, n7, n8, n9);
+    let mut v2 = v.iter().map( |x| -> Name {
+        read_dns_name(*x, &mut 0).ok().unwrap()
+    }
+    );
+    let mut this = v2.next().unwrap();
+    let mut that = v2.next().unwrap();
+    while let Some(next) = v2.next() {
+        this = that;
+        that = next;
+        assert!(this < that);
+    }
+    let n1 = "\x01*\x01z\x07example\x00".as_bytes();
+    let n2 = "\x01\x01\x01z\x07example\x00".as_bytes();
+    let n3 = "\x01z\x07example\x00".as_bytes();
+    let n4 = "\x04zABC\x01a\x07example\x00".as_bytes();
+    let n5 = "\x01Z\x01a\x07example\x00".as_bytes();
+    let n6 = "\x08yljkjljk\x01a\x07example\x00".as_bytes();
+    let n7 = "\x01a\x07example\x00".as_bytes();
+    let n8 = "\x07EXAMPLE\x00".as_bytes();
+    let n9 = "\x07axample\x00".as_bytes();
+    let v = vec!(n1, n2, n3, n4, n5, n6, n7, n8, n9);
+    let mut v2 = v.iter().map( |x| -> Name {
+        read_dns_name(*x, &mut 0).ok().unwrap()
+    }
+    );
+    let mut this = v2.next().unwrap();
+    let mut that = v2.next().unwrap();
+    while let Some(next) = v2.next() {
+        this = that;
+        that = next;
+        assert!(this > that);
+    }
+    // <--- End RFC4034 testcases
+
+    let mut v3 = vec!(
+        "\x01A\x00".as_bytes(),
+        "\x01a\x00".as_bytes(),
+        "\x01b\x00".as_bytes(),
+        "\x01c\x00".as_bytes(),
+        "\x01d\x00".as_bytes(),
+        "\x01c\x01d\x00".as_bytes(),
+        "\x01B\x01c\x01d\x00".as_bytes(),
+        "\x01b\x01C\x01d\x00".as_bytes(),
+        "\x01b\x01c\x01d\x00".as_bytes(),
+        "\x01\x10\x01b\x01c\x01d\x00".as_bytes(),
+        "\x01\x11\x01b\x01c\x01d\x00".as_bytes(),
+        "\x01\x12\x01b\x01c\x01d\x00".as_bytes(),
+        "\x01\x13\x01b\x01c\x01d\x00".as_bytes(),
+        "\x01\x14\x01b\x01c\x01d\x00".as_bytes(),
+        );
+    let mut v4 = v3.iter().map( |x| -> Name {
+        //println!("{}", read_dns_name(*x, &mut 0));
+        read_dns_name(*x, &mut 0).ok().unwrap()
+    }
+    );
+    let mut this = v4.next().unwrap();
+    let mut that = v4.next().unwrap();
+    assert!(this < that);
+    while let Some(next) = v4.next() {
+        this = that;
+        that = next;
+        assert!(this < that);
+    }
+
+    let mut v5 = vec!(
+        "\x01\x14\x01b\x01c\x01d\x00".as_bytes(),
+        "\x01\x13\x01b\x01c\x01d\x00".as_bytes(),
+        "\x01\x12\x01b\x01c\x01d\x00".as_bytes(),
+        "\x01\x11\x01b\x01c\x01d\x00".as_bytes(),
+        "\x01\x10\x01b\x01c\x01d\x00".as_bytes(),
+        "\x01b\x01c\x01d\x00".as_bytes(),
+        "\x01b\x01C\x01d\x00".as_bytes(),
+        "\x01B\x01c\x01d\x00".as_bytes(),
+        "\x01c\x01d\x00".as_bytes(),
+        "\x01d\x00".as_bytes(),
+        "\x01c\x00".as_bytes(),
+        "\x01b\x00".as_bytes(),
+        "\x01a\x00".as_bytes(),
+        "\x01A\x00".as_bytes(),
+        );
+    let mut v6 = v5.iter().map( |x| -> Name {
+        //println!("{}", read_dns_name(*x, &mut 0));
+        read_dns_name(*x, &mut 0).ok().unwrap()
+    }
+    );
+    let mut this = v6.next().unwrap();
+    let mut that = v6.next().unwrap();
+    assert!(this > that);
+    while let Some(next) = v6.next() {
+        this = that;
+        that = next;
+        assert!(this > that);
+    }
+
+    read_dns_name(n1, &mut 0).ok().unwrap();
 }
 
 #[test]
