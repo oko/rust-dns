@@ -7,6 +7,7 @@ pub enum ReadError {
     IndexOutOfRangeError(uint, uint),
     LabelTooLongError(uint),
     LabelZeroLengthError,
+    LabelInputFormatError,
 }
 
 impl error::Error for ReadError {
@@ -15,7 +16,8 @@ impl error::Error for ReadError {
             ReadError::InvalidIdentifierError(x) => "Read an invalid identifier",
             ReadError::IndexOutOfRangeError(_, _) => "Index out of range",
             ReadError::LabelTooLongError(x) => "Label too long",
-            ReadError::LabelZeroLengthError => "Label has zero length"
+            ReadError::LabelZeroLengthError => "Label has zero length",
+            ReadError::LabelInputFormatError => "Label input format invalid",
         }
     }
 
@@ -25,6 +27,7 @@ impl error::Error for ReadError {
             ReadError::IndexOutOfRangeError(x, y) => Some(format!("Index out of range: {} > {}", x, y)),
             ReadError::LabelTooLongError(x) => Some(format!("Label was too long: {} > 63", x)),
             ReadError::LabelZeroLengthError => Some(format!("Label has zero length")),
+            ReadError::LabelInputFormatError => Some(format!("Label input format invalid")),
 
         }
     }
