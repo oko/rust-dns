@@ -4,9 +4,9 @@ pub use super::number::rcodes::RCode;
 pub use super::number::opcodes::OpCode;
 pub use super::number::errors::IdentifierError;
 
-use std::io;
-use std::str;
 use std::fmt;
+use std::cmp;
+use std::str;
 
 use self::util::{_read_be_u16,_read_be_i32};
 
@@ -41,26 +41,236 @@ pub struct ResourceRecord<'n> {
     pub context: &'n [u8],
 }
 
+/// A DNS domain name.
+/// 
+/// Domain names consist of a sequence of labels, each between 1 and 63
+/// octets in length, which have a total length of less than 255 octets.
+/// Due to wire format limitations and the implicit terminating root
+/// label, the effective upper limit on name length is less than 255
+/// octets.
 #[deriving(PartialEq,Eq,Hash,Clone)]
 pub struct Name<'n> {
-    labels: Vec<&'n str>,
+    labels: Vec<Label<'n>>,
 }
 impl<'n> Name<'n> {
     #[inline]
     pub fn to_string(&self) -> String {
-        format!("{}.", self.labels.connect("."))
+        format!("{}", self)
     }
+
+    /// Parse a DNS name from the RDATA section of a DNS resource record.
+    /// The `context` field in the `ResourceRecord` struct exists so that
+    /// this function can properly follow pointers.
     pub fn from_rdata<'r>(rr: &'r ResourceRecord) -> Result<Name<'r>, err::ReadError> {
         let mut i = rr.rdata;
         read_dns_name(rr.context, &mut i)
     }
+    fn from_str(s: &'n str) -> Result<Name, err::ReadError> {
+        let mut n = Name { labels: Vec::new() };
+        for x in s.split('.') {
+            if x.len() == 0 { continue; }
+            n.labels.push(try!(Label::from_slice(x.as_bytes())));
+        }
+        Ok(n)
+    }
 }
 impl<'n> fmt::Show for Name<'n> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        if self.labels.len() > 0 {
+            for l in self.labels.iter() {
+                try!(write!(f, "{}.", l));
+            }
+            write!(f, "")
+        } else {
+            write!(f, ".")
+        }
+    }
+}
+impl<'n> cmp::PartialOrd for Name<'n> {
+    fn partial_cmp(&self, other: &Name<'n>) -> Option<Ordering> {
+        println!("START CMP");
+        println!("{} : {}", self, other);
+        let sl = self.labels.len();
+        let ol = other.labels.len();
+        let mut case = Equal;
+        let max_depth = cmp::min(sl, ol);
+        for i in range(1, max_depth + 1) {
+            println!("{} : {}", self.labels[sl - i], other.labels[ol - i]);
+            if self.labels[sl - i] == other.labels[ol - i] {
+                println!("label at -{} eq", i);
+                if self.labels[sl - i] < other.labels[ol - i] {
+                    case = Less;
+                } else if self.labels[sl - i] > other.labels[ol - i] {
+                    case = Greater;
+                } else {
+                    continue;
+                }
+            } else if self.labels[sl - i] < other.labels[ol - i] {
+                println!("label at -{} self smaller", i);
+                return Some(Less);
+            } else if self.labels[sl - i] > other.labels[ol - i] {
+                println!("labels at -{} self larger", i);
+                return Some(Greater);
+            }
+        }
+        if sl > ol {
+            Some(Greater)
+        } else if sl < ol {
+            Some(Less)
+        } else {
+            Some(case)
+        }
     }
 }
 
+/// A DNS domain name label.
+///
+/// A label may consist of between 1 and 63 octets of any value `0x00`
+/// to `0xFF`
+#[deriving(Eq,Hash,Clone)]
+pub struct Label<'l> {
+    label: &'l [u8],
+}
+
+impl<'l> Label<'l> {
+    fn from_slice(slice: &'l [u8]) -> Result<Label, err::ReadError> {
+        if slice.len() > 63 { return Err(err::ReadError::LabelTooLongError(slice.len())); }
+        if slice.len() == 0 { return Err(err::ReadError::LabelZeroLengthError); }
+        Ok(Label { label: slice, })
+    }
+}
+impl<'l> fmt::Show for Label<'l> {
+
+    /// Formats a label, escaping non-printing characters and "." as per
+    /// [RFC4343§2.1](https://tools.ietf.org/html/rfc4343#section-2.1)
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for c in self.label.iter() {
+            match *c {
+                // Non-printing character ranges are shown as \XXX
+                // where XXX is the char's zero-padded decimal repr
+                x @ 0x00...0x20 | x @ 0x7F...0xFF | x @ 0x2E => {
+                    try!(write!(f, "\\{:03}", x));
+                },
+                // Printing character ranges are shown as is
+                x @ 0x21...0x2D | x @ 0x2F...0x7E => {
+                    try!(write!(f, "{}", x as char));
+                },
+                _ => {
+                    return Err(fmt::Error);
+                }, 
+            }
+        }
+        write!(f, "")
+    }
+}
+impl<'l> cmp::PartialEq for Label<'l> {
+
+    /// Domain names are compared for equality case-insensitively for
+    /// alphabetic characters (`0x41...0x5A`, `0x61...0x71`).
+    fn eq(&self, other: &Label) -> bool {
+        let sl = self.label.len();
+        let ol = other.label.len();
+        if sl != ol { return false; }
+        for i in range(0, cmp::min(sl, ol)) {
+            match self.label[i] {
+                x @ 0x41...0x5A => {
+                    // Compare uppercase letters case-insensitively
+                    if x == other.label[i] || (x + 32) == other.label[i] { continue; } else { return false; }
+                },
+                x @ 0x61...0x7A => {
+                    // Compare lowercase letters case-insensitively
+                    if x == other.label[i] || (x - 32) == other.label[i] { continue; } else { return false; }
+                },
+                x @ _ => {
+                    // Direct equality for non-alphabetic characters
+                    if x == other.label[i] { continue; } else { return false; }
+                }
+            }
+        }
+        true
+    }
+}
+impl<'l> cmp::PartialOrd for Label<'l> {
+
+    /// Domain names are compared for ordering based on the ordinal
+    /// values of characters (i.e., 'A' is hex `0x41`, and 'a' is hex `0x61`,
+    /// so 'A' orders before 'a')
+    fn partial_cmp(&self, other: &Label) -> Option<Ordering> {
+        let sl = self.label.len();
+        let ol = other.label.len();
+        let mut caps = Equal;
+
+        // Don't try to compare outside bounds if one label is shorter
+        for i in range(0, cmp::min(sl, ol)) {
+            let sli = self.label[i];
+            let oli = other.label[i];
+            // Strip casing from [a-z] characters for comparison
+            let sll = if 0x61 <= sli && sli <= 0x7A { sli - 32 } else { sli };
+            let oll = if 0x61 <= oli && oli <= 0x7A { oli - 32 } else { oli };
+
+            if sll < oll {
+                return Some(Less);
+            } else if sll > oll {
+                return Some(Greater);
+            } else {
+                if caps == Equal {
+                    if sli < oli {
+                        caps = Less;
+                    } else if sli > oli {
+                        caps = Greater;
+                    }
+                }
+            }
+        }
+        if sl > ol { Some(Greater) }
+        else if sl < ol { Some(Less) }
+        else { Some(caps) }
+    }
+}
+// impl<'l> cmp::Ord for Label<'l> {
+
+//     /// Domain names are compared for ordering based on the ordinal
+//     /// values of characters (i.e., 'A' is hex `0x41`, and 'a' is hex `0x61`,
+//     /// so 'A' orders before 'a')
+//     fn cmp(&self, other: &Label) -> Ordering {
+//         let sl = self.label.len();
+//         let ol = other.label.len();
+
+//         // Don't try to compare outside bounds if one label is shorter
+//         for i in range(0, cmp::min(sl, ol)) {
+//             let sli = self.label[i];
+//             let oli = other.label[i];
+//             // Order by value
+//             match sli {
+//                 x @ 0x61...0x7A => {
+//                     // Compare lowercase letters case-insensitively
+//                     match oli {
+//                         y @ 0x41...0x5A => {
+//                             if (x - 32) < y { return Less; }
+//                             else { return Greater; }
+//                         },
+//                         y @ _ => {
+//                             if x < y { return Less; }
+//                             else if y > x { return Greater; }
+//                             else { continue; }
+//                         }
+//                     }
+//                 },
+//                 _ => {
+//                     if sli > oli { return Greater; }
+//                     else if sli < oli { return Less; }
+//                     else { continue; }
+//                 }
+//             }
+//         }
+//         // If 
+//         if sl > ol { Greater }
+//         else if sl < ol { Less }
+//         else { Equal }
+//     }
+// }
+
+/// Read a DNS message from a `&[u8]` buffer.
 pub fn read_dns_message<'b>(buf: &'b [u8]) -> Result<Message<'b>, err::ReadError> {
     if buf.len() < 12 {
         return Err(err::ReadError::IndexOutOfRangeError(12, buf.len()));
@@ -92,6 +302,7 @@ pub fn read_dns_message<'b>(buf: &'b [u8]) -> Result<Message<'b>, err::ReadError
     Ok(msg)
 }
 
+/// Read a single DNS question from a buffer
 #[inline(always)]
 fn read_dns_question<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Question<'b>, err::ReadError> {
     let mut q = Question {
@@ -108,6 +319,8 @@ fn read_dns_question<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Question<'b>, 
     Ok(q)
 }
 
+/// Read a single DNS resource record from a `&[u8]` buffer
+#[inline(always)]
 fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut uint) -> Result<ResourceRecord<'b>, err::ReadError> {
     let mut r = ResourceRecord {
         rname: try!(read_dns_name(buf, idx)),
@@ -135,6 +348,7 @@ fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Resourc
     Ok(r)
 }
 
+/// Read a single DNS name from a `&[u8]` buffer
 #[inline(always)]
 fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Name<'b>, err::ReadError> {
     // Pre-check bounds (min 1 byte for root label)
@@ -142,7 +356,7 @@ fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Name<'b>, err::Rea
         return Err(err::ReadError::IndexOutOfRangeError(*idx + 1, buf.len()));
     }
 
-    let mut labels: Vec<&str> = Vec::with_capacity(8);
+    let mut labels: Vec<Label> = Vec::with_capacity(8);
 
     let mut follow = false;
     let mut return_to = 0u;
@@ -184,14 +398,9 @@ fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Name<'b>, err::Rea
         } else if (*idx + offset) >= blen {
             return Err(err::ReadError::IndexOutOfRangeError(*idx + offset, blen));
         } else {
-            let str_read = str::from_utf8(buf[*idx+1..*idx+offset]);
+            let new_label = buf[*idx+1..*idx+offset];
             *idx += offset;
-            match str_read {
-                Some(s) => {
-                    labels.push(s);
-                },
-                None => return Err(err::ReadError::InvalidUTF8StringError),
-            }
+            labels.push(try!(Label::from_slice(new_label)));
         }
     }
 
@@ -208,57 +417,4 @@ fn read_dns_name<'b>(buf: &'b [u8], idx: &mut uint) -> Result<Name<'b>, err::Rea
 }
 
 #[cfg(test)]
-mod test_hp {
-    
-    use super::read_dns_message;
-    use super::Message;
-    use super::Name;
-    static NET1_RS: &'static [u8] = include_bin!("../../tests/packets/net1-rs.bin");
-
-    fn check_std_response_norecurse(m: &Message, q: uint, a: uint, n: uint, x: uint) {
-        assert_eq!(m.flags, 0x8000);
-        assert_eq!(m.questions.len(), q);
-        assert_eq!(m.answers.len(), a);
-        assert_eq!(m.nameservers.len(), n);
-        assert_eq!(m.additionals.len(), x);
-    }
-
-    #[test]
-    fn test_read_dns_message() {
-        let m = match read_dns_message(NET1_RS) {
-            Ok(x) => x,
-            Err(e) => { println!("err: {}",e); panic!("FAIL"); },
-        };
-        assert_eq!(m.id, 0xe1c9);
-        assert_eq!(m.flags, 0x8000);
-
-        let q = m.questions[0].clone();
-        assert_eq!(format!("{}",q.qname).as_slice(), "net.");
-        check_std_response_norecurse(&m, 1, 0, 13, 15);
-        let mut a_ct: uint = 0;
-        for a in m.nameservers.iter() {
-            assert_eq!(a.rttl, 172800);
-            
-            let n = Name::from_rdata(a).ok().unwrap().to_string();
-            if n.as_slice() == "a.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "b.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "c.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "d.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "e.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "f.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "g.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "h.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "i.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "j.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "k.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "l.gtld-servers.net." { a_ct += 1; }
-            if n.as_slice() == "m.gtld-servers.net." { a_ct += 1; }
-        }
-        assert_eq!(a_ct, 13);
-    }
-
-    #[test]
-    fn test_bounds_checks() {
-        let m = read_dns_message(NET1_RS[0..NET1_RS.len()-2]).err();
-    }
-}
+mod tests;

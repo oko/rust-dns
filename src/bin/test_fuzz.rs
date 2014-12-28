@@ -28,9 +28,9 @@ fn main() {
     // Use random seed for actual binary
     let mut rng: StdRng = StdRng::new().ok().unwrap();
     rand_buf(buf.as_mut_slice(), &mut rng);
-    do_fuzz(buf.as_slice(), &mut rng, 10000000u);
+    do_fuzz(buf.as_slice(), &mut rng, 1000000u);
     let pkt = include_bin!("../../tests/packets/net1-rs.bin");
-    do_fuzz_rewrite(pkt, buf.as_mut_slice(), &mut rng, 200000u);
+    do_fuzz_rewrite(pkt, buf.as_mut_slice(), &mut rng, 1000000u);
 }
 
 #[test]
@@ -40,7 +40,7 @@ fn test_dns_hp_fuzzing() {
     let seed: &[_] = &[508, 53, 284, 224, 173, 23, 572, 634, 439, 983];
     let mut rng: StdRng = SeedableRng::from_seed(seed);
     rand_buf(buf.as_mut_slice(), &mut rng);
-    do_fuzz(buf.as_slice(), &mut rng, 1000000u);
+    do_fuzz(buf.as_slice(), &mut rng, 10000u);
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn test_dns_hp_fuzzing_rewrite() {
     let seed: &[_] = &[508, 53, 284, 224, 173, 23, 572, 634, 439, 983];
     let mut rng: StdRng = SeedableRng::from_seed(seed);
     rand_buf(buf.as_mut_slice(), &mut rng);
-    do_fuzz_rewrite(pkt, buf.as_mut_slice(), &mut rng, 100000u);
+    do_fuzz_rewrite(pkt, buf.as_mut_slice(), &mut rng, 10000u);
 }
 
 fn rand_buf(buf: &mut [u8], rng: &mut StdRng) {
@@ -100,7 +100,7 @@ fn do_fuzz_rewrite(pkt: &[u8], buf: &[u8], rng: &mut StdRng, iters: uint) {
     let end = time::precise_time_ns();
     let elapsed = (end - start) as f64 / 1000000000.;
     let avg_size = (tsz) as f64 / iters as f64;
-    println!("Fuzz: completed {} iterations in {}s ({} ok/{} err/rw {} byte avg)", iters, elapsed, oks, errs, avg_size);
+    println!("Fuzz-RW: completed {} iterations in {}s ({} ok/{} err/rw {} byte avg)", iters, elapsed, oks, errs, avg_size);
 }
 
 fn do_fuzz(buf: &[u8], rng: &mut StdRng, iters: uint) {
