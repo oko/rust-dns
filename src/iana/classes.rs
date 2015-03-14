@@ -1,7 +1,7 @@
 pub use super::IdentifierError;
 
 #[repr(u16)]
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug,Clone)]
 pub enum Class {
     IN = 1,
     CH = 3,
