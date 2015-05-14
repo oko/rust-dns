@@ -59,7 +59,7 @@ mod test_edns0optioncode {
     fn test_range_reserved_identity() {
         assert_eq!(IdentifierError::ReservedIdentifierError(0), EDNS0OptionCode::from_u16(0).err().unwrap());
         assert_eq!(IdentifierError::ReservedIdentifierError(4), EDNS0OptionCode::from_u16(4).err().unwrap());
-        for i in range(65001, 65534u64+1) {
+        for i in 65001..(65534u64+1) {
             assert_eq!(IdentifierError::ReservedIdentifierError(i as i64), EDNS0OptionCode::from_u16(i as u16).err().unwrap());
         }
         assert_eq!(IdentifierError::ReservedIdentifierError(65535), EDNS0OptionCode::from_u16(65535).err().unwrap());
@@ -67,7 +67,7 @@ mod test_edns0optioncode {
     }
     #[test]
     fn test_range_unassigned_identity() {
-        for i in range(10, 65000u64+1) {
+        for i in 10..(65000u64+1) {
             assert_eq!(IdentifierError::UnassignedIdentifierError(i as i64), EDNS0OptionCode::from_u16(i as u16).err().unwrap());
         }
 

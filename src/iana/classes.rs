@@ -50,7 +50,7 @@ mod test_class {
 
     #[test]
     fn test_range_privateuse_identity() {
-        for i in range(65280, 65534u64+1) {
+        for i in 65280..(65534u64+1) {
             assert_eq!(IdentifierError::PrivateUseIdentifierError(i as i64), Class::from_u16(i as u16).err().unwrap());
         }
 
@@ -64,10 +64,10 @@ mod test_class {
     #[test]
     fn test_range_unassigned_identity() {
         assert_eq!(IdentifierError::UnassignedIdentifierError(2), Class::from_u16(2).err().unwrap());
-        for i in range(5, 253u64+1) {
+        for i in 5..(253u64+1) {
             assert_eq!(IdentifierError::UnassignedIdentifierError(i as i64), Class::from_u16(i as u16).err().unwrap());
         }
-        for i in range(256, 65279u64+1) {
+        for i in 256..(65279u64+1) {
             assert_eq!(IdentifierError::UnassignedIdentifierError(i as i64), Class::from_u16(i as u16).err().unwrap());
         }
 

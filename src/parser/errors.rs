@@ -1,8 +1,9 @@
 use std::fmt;
+use std::convert;
 use std::error;
 use super::IdentifierError;
 
-#[derive(PartialEq,Copy,Clone)]
+#[derive(PartialEq,Copy,Clone,Debug)]
 pub enum ReadError {
     InvalidIdentifierError(super::IdentifierError),
     IndexOutOfRangeError(usize, usize),
@@ -14,9 +15,9 @@ pub enum ReadError {
 impl error::Error for ReadError {
     fn description(&self) -> &str {
         match *self {
-            ReadError::InvalidIdentifierError(x) => "Read an invalid identifier",
+            ReadError::InvalidIdentifierError(_) => "Read an invalid identifier",
             ReadError::IndexOutOfRangeError(_, _) => "Index out of range",
-            ReadError::LabelTooLongError(x) => "Label too long",
+            ReadError::LabelTooLongError(_) => "Label was too long",
             ReadError::LabelZeroLengthError => "Label has zero length",
             ReadError::LabelInputFormatError => "Label input format invalid",
         }
@@ -30,8 +31,8 @@ impl error::Error for ReadError {
     }
 }
 
-impl error::FromError<IdentifierError> for ReadError {
-    fn from_error(err: IdentifierError) -> ReadError {
+impl convert::From<IdentifierError> for ReadError {
+    fn from(err: IdentifierError) -> ReadError {
         ReadError::InvalidIdentifierError(err)
     }
 }

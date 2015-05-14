@@ -4,6 +4,8 @@ use super::RCode;
 use super::OpCode;
 use super::errors;
 
+use super::{_read_be_u16,_read_be_i32};
+
 use std::fmt;
 use std::cmp;
 use std::cmp::Ordering;
@@ -44,21 +46,21 @@ pub struct ResourceRecord<'n> {
 /// octets.
 #[derive(PartialEq,Eq,Hash,Debug,Clone)]
 pub struct Name<'n> {
-    labels: Vec<Label<'n>>,
+    pub labels: Vec<Label<'n>>,
 }
 impl<'n> Name<'n> {
     #[inline]
     pub fn to_string(&self) -> String {
-        format!("{:?}", self)
+        format!("{}", self)
     }
 
     /// Parse a DNS name from the RDATA section of a DNS resource record.
     /// The `context` field in the `ResourceRecord` struct exists so that
     /// this function can properly follow pointers.
-//    pub fn from_rdata<'r>(rr: &'r ResourceRecord) -> Result<Name<'r>, errors::ReadError> {
-//        let mut i = rr.rdata;
-//        read_dns_name(rr.context, &mut i)
-//    }
+    pub fn from_rdata<'r>(rr: &'r ResourceRecord) -> Result<Name<'r>, errors::ReadError> {
+        let mut i = rr.rdata;
+        read_dns_name(rr.context, &mut i)
+    }
     fn from_str(s: &'n str) -> Result<Name, errors::ReadError> {
         let mut n = Name { labels: Vec::new() };
         for x in s.split('.') {
@@ -86,7 +88,7 @@ impl<'n> cmp::PartialOrd for Name<'n> {
         let ol = other.labels.len();
         let mut case = Ordering::Equal;
         let max_depth = cmp::min(sl, ol);
-        for i in range(1, max_depth + 1) {
+        for i in 1..(max_depth + 1) {
             if self.labels[sl - i] == other.labels[ol - i] {
                 if self.labels[sl - i] < other.labels[ol - i] {
                     case = Ordering::Less;
@@ -121,7 +123,7 @@ pub struct Label<'l> {
 }
 
 impl<'l> Label<'l> {
-    fn from_slice(slice: &'l [u8]) -> Result<Label, errors::ReadError> {
+    pub fn from_slice(slice: &'l [u8]) -> Result<Label, errors::ReadError> {
         if slice.len() > 63 { return Err(errors::ReadError::LabelTooLongError(slice.len())); }
         if slice.len() == 0 { return Err(errors::ReadError::LabelZeroLengthError); }
         Ok(Label { label: slice, })
@@ -159,7 +161,7 @@ impl<'l> cmp::PartialEq for Label<'l> {
         let sl = self.label.len();
         let ol = other.label.len();
         if sl != ol { return false; }
-        for i in range(0, cmp::min(sl, ol)) {
+        for i in 0..cmp::min(sl, ol) {
             match self.label[i] {
                 x @ 0x41...0x5A => {
                     // Compare uppercase letters case-insensitively
@@ -189,18 +191,21 @@ impl<'l> cmp::PartialOrd for Label<'l> {
         let mut caps = Ordering::Equal;
 
         // Don't try to compare outside bounds if one label is shorter
-        for i in range(0, cmp::min(sl, ol)) {
+        for i in 0..cmp::min(sl, ol) {
             let sli = self.label[i];
             let oli = other.label[i];
-            // Strip casing from [a-z] characters for comparison
+
+            // Strip casing from [a-z] characters for initial comparison
             let sll = if 0x61 <= sli && sli <= 0x7A { sli - 32 } else { sli };
             let oll = if 0x61 <= oli && oli <= 0x7A { oli - 32 } else { oli };
 
+            // Compare case-insensitively first
             if sll < oll {
                 return Some(Ordering::Less);
             } else if sll > oll {
                 return Some(Ordering::Greater);
             } else {
+                // Compare case-sensitively second, if equal
                 if caps == Ordering::Equal {
                     if sli < oli {
                         caps = Ordering::Less;
@@ -210,8 +215,167 @@ impl<'l> cmp::PartialOrd for Label<'l> {
                 }
             }
         }
+        // Resolve length-sensitive ordering before case-sensitive
+        // (probably more efficient in
         if sl > ol { Some(Ordering::Greater) }
         else if sl < ol { Some(Ordering::Less) }
         else { Some(caps) }
     }
+}
+
+/// Read a DNS message from a `&[u8]` buffer.
+pub fn read_dns_message<'b>(buf: &'b [u8]) -> Result<Message<'b>, errors::ReadError> {
+    // Validate minimum length
+    if buf.len() < 12 {
+        return Err(errors::ReadError::IndexOutOfRangeError(12, buf.len()));
+    }
+    let mut i = 0usize;
+
+    // Read header
+    let id = _read_be_u16(buf, &mut i);
+    let flags = _read_be_u16(buf, &mut i);
+    let qdcount = _read_be_u16(buf, &mut i);
+    let ancount = _read_be_u16(buf, &mut i);
+    let nscount = _read_be_u16(buf, &mut i);
+    let adcount = _read_be_u16(buf, &mut i);
+
+    let mut msg = Message {
+        id: id,
+        flags: flags,
+        questions: Vec::new(),
+        answers: Vec::new(),
+        nameservers: Vec::new(),
+        additionals: Vec::new(),
+    };
+
+    // Read questions, answers, nameservers, and additional records
+    for n in 0..qdcount {
+        msg.questions.push(try!(read_dns_question(buf, &mut i)));
+    }
+    for n in 0..ancount {
+        msg.answers.push(try!(read_dns_resource_record(buf, &mut i)));
+    }
+    for n in 0..nscount {
+        msg.nameservers.push(try!(read_dns_resource_record(buf, &mut i)));
+    }
+    for n in 0..adcount {
+        msg.additionals.push(try!(read_dns_resource_record(buf, &mut i)));
+    }
+
+    Ok(msg)
+}
+
+/// Read a single DNS question from a buffer
+#[inline(always)]
+pub fn read_dns_question<'b>(buf: &'b [u8], idx: &mut usize) -> Result<Question<'b>, errors::ReadError> {
+    let mut q = Question {
+        qname: try!(read_dns_name(buf, idx)),
+        qtype: Type::A,
+        qclass: Class::IN,
+    };
+    // Check bounds before reading fixed-length question data
+    if *idx + 4 > buf.len() {
+        return Err(errors::ReadError::IndexOutOfRangeError(*idx + 4, buf.len()));
+    }
+    q.qtype = try!(Type::from_u16(_read_be_u16(buf, idx)));
+    q.qclass = try!(Class::from_u16(_read_be_u16(buf, idx)));
+    Ok(q)
+}
+
+/// Read a single DNS resource record from a `&[u8]` buffer
+#[inline(always)]
+pub fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut usize) -> Result<ResourceRecord<'b>, errors::ReadError> {
+    let mut r = ResourceRecord {
+        rname: try!(read_dns_name(buf, idx)),
+        rtype: Type::A,
+        rclass: Class::IN,
+        rttl: 0,
+        rdlen: 0,
+        rdata: *idx,
+        context: buf,
+    };
+    // Check bounds before reading fixed-length RR data
+    if *idx + 10 >= buf.len() {
+        return Err(errors::ReadError::IndexOutOfRangeError(*idx + 10, buf.len()));
+    }
+    r.rtype = try!(Type::from_u16(_read_be_u16(buf, idx)));
+    r.rclass = try!(Class::from_u16(_read_be_u16(buf, idx)));
+    r.rttl = _read_be_i32(buf, idx);
+    r.rdlen = _read_be_u16(buf, idx);
+    r.rdata = *idx;
+    *idx += r.rdlen as usize;
+    // Check bounds of RDLEN/RDATA against buffer size
+    if *idx > buf.len() {
+        return Err(errors::ReadError::IndexOutOfRangeError(*idx, buf.len()));
+    }
+
+    Ok(r)
+}
+
+/// Read a single DNS name from a `&[u8]` buffer
+#[inline(always)]
+pub fn read_dns_name<'b>(buf: &'b [u8], idx: &mut usize) -> Result<Name<'b>, errors::ReadError> {
+    // Pre-check bounds (min 1 byte for root label)
+    if *idx + 1 > buf.len() {
+        return Err(errors::ReadError::IndexOutOfRangeError(*idx + 1, buf.len()));
+    }
+
+    let mut labels: Vec<Label> = Vec::with_capacity(8);
+
+    let mut follow = false;
+    let mut return_to = 0usize;
+    let mut pcount = 0usize;
+    let blen = buf.len();
+    // Read in labels
+    loop {
+        // Check bounds for next label
+        if *idx + 1 > buf.len() {
+            return Err(errors::ReadError::IndexOutOfRangeError(*idx + 1, buf.len()));
+        }
+        // Get the next label's size
+        let llen = buf[*idx];
+        // Get offset (clear upper 2 bits of label size)
+        let offset = 1 + ((llen & 0x3F) as usize);
+
+        if llen == 0 || pcount > 255 {
+            // Zero length labels are the root, so we're done
+
+            // If we've gone through more than 255 pointers something
+            // isn't right and we should bail.
+
+            break;
+        } else if (llen & 0xC0) == 0xC0 && (*idx + 1) < blen {
+            // Labels with the two high order bits set (0xC0)
+            // are pointers.
+
+            // If this is the first pointer encountered, store
+            // the current reader location to restore later.
+            if !follow {
+                return_to = *idx+2;
+                follow = true;
+            }
+            pcount += 1;
+
+            // Seek to the pointer location
+            *idx = buf[*idx+1] as usize;
+            continue;
+        } else if (*idx + offset) >= blen {
+            return Err(errors::ReadError::IndexOutOfRangeError(*idx + offset, blen));
+        } else {
+            let new_label = &buf[*idx+1..*idx+offset];
+            *idx += offset;
+            labels.push(try!(Label::from_slice(new_label)));
+        }
+    }
+
+    if follow {
+        // Restore the reader location to the byte after the first
+        // pointer followed during the read.
+        *idx = return_to;
+    } else {
+        // Or just push the index up by one if we aren't reading.
+        *idx += 1;
+    }
+
+    Ok(Name { labels: labels })
 }

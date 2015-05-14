@@ -15,7 +15,7 @@ pub fn _read_be_i32(buf: &[u8], idx: &mut usize) -> i32 {
 mod test_hp_support_functions {
     #[test]
     fn test_read_be_u16() {
-        for i in range(0, 65536usize) {
+        for i in 0..65536usize {
             let b = [((i & 0xFF00) >> 8) as u8, (i & 0x00FF) as u8];
             assert_eq!(super::_read_be_u16(&b, &mut 0), i as u16);
         }

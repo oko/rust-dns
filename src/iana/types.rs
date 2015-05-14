@@ -282,7 +282,7 @@ mod test_type {
 
     #[test]
     fn test_range_privateuse_identity() {
-        for i in range(65280, 65534u64+1) {
+        for i in 65280..(65534u64+1) {
             assert_eq!(IdentifierError::PrivateUseIdentifierError(i as i64), Type::from_u16(i as u16).err().unwrap());
         }
 
@@ -294,19 +294,19 @@ mod test_type {
     }
     #[test]
     fn test_range_unassigned_identity() {
-        for i in range(53, 54u64+1) {
+        for i in 53..(54u64+1) {
             assert_eq!(IdentifierError::UnassignedIdentifierError(i as i64), Type::from_u16(i as u16).err().unwrap());
         }
-        for i in range(63, 98u64+1) {
+        for i in 63..(98u64+1) {
             assert_eq!(IdentifierError::UnassignedIdentifierError(i as i64), Type::from_u16(i as u16).err().unwrap());
         }
-        for i in range(110, 248u64+1) {
+        for i in 110..(248u64+1) {
             assert_eq!(IdentifierError::UnassignedIdentifierError(i as i64), Type::from_u16(i as u16).err().unwrap());
         }
-        for i in range(258, 32767u64+1) {
+        for i in 258..(32767u64+1) {
             assert_eq!(IdentifierError::UnassignedIdentifierError(i as i64), Type::from_u16(i as u16).err().unwrap());
         }
-        for i in range(32770, 65279u64+1) {
+        for i in 32770..(65279u64+1) {
             assert_eq!(IdentifierError::UnassignedIdentifierError(i as i64), Type::from_u16(i as u16).err().unwrap());
         }
 

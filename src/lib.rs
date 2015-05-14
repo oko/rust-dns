@@ -1,7 +1,6 @@
 #![crate_type = "lib"]
 #![crate_name = "dns"]
-
-#![feature(core)]
+#![feature(convert)]
 
 pub mod iana;
 pub mod proto;

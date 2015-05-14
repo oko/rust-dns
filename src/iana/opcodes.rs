@@ -45,7 +45,7 @@ mod test_opcode {
     #[test]
     fn test_range_unassigned_identity() {
         assert_eq!(IdentifierError::UnassignedIdentifierError(3), OpCode::from_u8(3).err().unwrap());
-        for i in range(6, 15u64+1) {
+        for i in 6..(15u64+1) {
             assert_eq!(IdentifierError::UnassignedIdentifierError(i as i64), OpCode::from_u8(i as u8).err().unwrap());
         }
 

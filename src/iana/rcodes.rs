@@ -88,7 +88,7 @@ mod test_rcode {
 
     #[test]
     fn test_range_privateuse_identity() {
-        for i in range(3841, 4095u64+1) {
+        for i in 3841..(4095u64+1) {
             assert_eq!(IdentifierError::PrivateUseIdentifierError(i as i64), RCode::from_u16(i as u16).err().unwrap());
         }
 
@@ -100,13 +100,13 @@ mod test_rcode {
     }
     #[test]
     fn test_range_unassigned_identity() {
-        for i in range(11, 15u64+1) {
+        for i in 11..(15u64+1) {
             assert_eq!(IdentifierError::UnassignedIdentifierError(i as i64), RCode::from_u16(i as u16).err().unwrap());
         }
-        for i in range(23, 3840u64+1) {
+        for i in 23..(3840u64+1) {
             assert_eq!(IdentifierError::UnassignedIdentifierError(i as i64), RCode::from_u16(i as u16).err().unwrap());
         }
-        for i in range(4096, 65534u64+1) {
+        for i in 4096..(65534u64+1) {
             assert_eq!(IdentifierError::UnassignedIdentifierError(i as i64), RCode::from_u16(i as u16).err().unwrap());
         }
 
