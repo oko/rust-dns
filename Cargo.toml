@@ -1,7 +1,9 @@
 [package]
 
 name = "dns"
-version = "0.0.3-pre1"
+version = "0.0.3-pre2"
 authors = ["Jacob Okamoto <oko@oko.io>"]
 description = "A DNS library for Rust."
 license = "BSD-2-Clause"
+homepage = "https://crates.io/crates/dns"
+repository = "https://github.com/oko/rust-dns"
