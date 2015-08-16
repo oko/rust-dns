@@ -1,7 +1,5 @@
 use super::Type;
 use super::Class;
-use super::RCode;
-use super::OpCode;
 use super::errors;
 
 use super::{_read_be_u16,_read_be_i32};
@@ -61,7 +59,7 @@ impl<'n> Name<'n> {
         let mut i = rr.rdata;
         read_dns_name(rr.context, &mut i)
     }
-    fn from_str(s: &'n str) -> Result<Name, errors::ReadError> {
+    pub fn from_str(s: &'n str) -> Result<Name, errors::ReadError> {
         let mut n = Name { labels: Vec::new() };
         for x in s.split('.') {
             if x.len() == 0 { continue; }
@@ -249,16 +247,16 @@ pub fn read_dns_message<'b>(buf: &'b [u8]) -> Result<Message<'b>, errors::ReadEr
     };
 
     // Read questions, answers, nameservers, and additional records
-    for n in 0..qdcount {
+    for _ in 0..qdcount {
         msg.questions.push(try!(read_dns_question(buf, &mut i)));
     }
-    for n in 0..ancount {
+    for _ in 0..ancount {
         msg.answers.push(try!(read_dns_resource_record(buf, &mut i)));
     }
-    for n in 0..nscount {
+    for _ in 0..nscount {
         msg.nameservers.push(try!(read_dns_resource_record(buf, &mut i)));
     }
-    for n in 0..adcount {
+    for _ in 0..adcount {
         msg.additionals.push(try!(read_dns_resource_record(buf, &mut i)));
     }
 
