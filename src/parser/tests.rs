@@ -1,7 +1,6 @@
 use super::{Message,Name,Label};
-use super::{read_dns_message,read_dns_question,read_dns_resource_record,read_dns_name};
+use super::{read_dns_message,read_dns_name};
 
-use std::str;
 static NET1_RS: &'static [u8] = include_bytes!("../../tests/packets/net1-rs.bin");
 
 fn check_std_response_norecurse(m: &Message, q: usize, a: usize, n: usize, x: usize) {
@@ -17,7 +16,6 @@ fn test_label_create() {
     // Maximum label length is 63 octets
     let l63 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".as_bytes();
     let l64 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".as_bytes();
-    let l0 = "".as_bytes();
     assert!(Label::from_slice(l63).is_ok());
     assert!(Label::from_slice(l64).is_err());
 }
@@ -68,9 +66,9 @@ fn test_label_ord() {
     assert!(l2 < l3);
     assert!(l1 < l3);
 
-    let mut b1 = [0x63u8, 0x61, 0x74, 0x00];
-    let mut b2 = [0x63u8, 0x61, 0x74, 0x01];
-    let mut b3 = [0x63u8, 0x61, 0x74, 0x02];
+    let b1 = [0x63u8, 0x61, 0x74, 0x00];
+    let b2 = [0x63u8, 0x61, 0x74, 0x01];
+    let b3 = [0x63u8, 0x61, 0x74, 0x02];
     let l1 = Label::from_slice(&b1).ok().unwrap();
     let l2 = Label::from_slice(&b2).ok().unwrap();
     let l3 = Label::from_slice(&b3).ok().unwrap();
@@ -100,6 +98,7 @@ fn test_name_ord() {
     );
     let mut this = v2.next().unwrap();
     let mut that = v2.next().unwrap();
+    assert!(this < that);
     while let Some(next) = v2.next() {
         this = that;
         that = next;
@@ -121,6 +120,7 @@ fn test_name_ord() {
     );
     let mut this = v2.next().unwrap();
     let mut that = v2.next().unwrap();
+    assert!(this > that);
     while let Some(next) = v2.next() {
         this = that;
         that = next;
@@ -128,7 +128,7 @@ fn test_name_ord() {
     }
     // <--- End RFC4034 testcases
 
-    let mut v3 = vec!(
+    let v3 = vec!(
         "\x01A\x00".as_bytes(),
         "\x01a\x00".as_bytes(),
         "\x01b\x00".as_bytes(),
@@ -158,7 +158,7 @@ fn test_name_ord() {
         assert!(this < that);
     }
 
-    let mut v5 = vec!(
+    let v5 = vec!(
         "\x01\x14\x01b\x01c\x01d\x00".as_bytes(),
         "\x01\x13\x01b\x01c\x01d\x00".as_bytes(),
         "\x01\x12\x01b\x01c\x01d\x00".as_bytes(),
@@ -229,5 +229,5 @@ fn test_read_dns_message() {
 
 #[test]
 fn test_bounds_checks() {
-    let m = read_dns_message(&NET1_RS[0..NET1_RS.len()-2]).err();
+    let _ = read_dns_message(&NET1_RS[0..NET1_RS.len()-2]).err();
 }
