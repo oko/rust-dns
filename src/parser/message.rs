@@ -22,15 +22,15 @@ pub struct Message<'n> {
 #[derive(PartialEq,Debug,Clone)]
 pub struct Question<'n> {
     pub qname: Name<'n>,
-    pub qtype: Type,
-    pub qclass: Class,
+    pub qtype: u16,
+    pub qclass: u16,
 }
 
 #[derive(PartialEq,Debug,Clone)]
 pub struct ResourceRecord<'n> {
     pub rname: Name<'n>,
-    pub rtype: Type,
-    pub rclass: Class,
+    pub rtype: u16,
+    pub rclass: u16,
     pub rttl: i32,
     pub rdlen: u16,
     pub rdata: usize,
@@ -270,15 +270,15 @@ pub fn read_dns_message<'b>(buf: &'b [u8]) -> Result<Message<'b>, errors::ReadEr
 pub fn read_dns_question<'b>(buf: &'b [u8], idx: &mut usize) -> Result<Question<'b>, errors::ReadError> {
     let mut q = Question {
         qname: try!(read_dns_name(buf, idx)),
-        qtype: Type::A,
-        qclass: Class::IN,
+        qtype: Type::A as u16,
+        qclass: Class::IN as u16,
     };
     // Check bounds before reading fixed-length question data
     if *idx + 4 > buf.len() {
         return Err(errors::ReadError::IndexOutOfRangeError(*idx + 4, buf.len()));
     }
-    q.qtype = try!(Type::from_u16(_read_be_u16(buf, idx)));
-    q.qclass = try!(Class::from_u16(_read_be_u16(buf, idx)));
+    q.qtype = _read_be_u16(buf, idx);
+    q.qclass = _read_be_u16(buf, idx);
     Ok(q)
 }
 
@@ -287,8 +287,8 @@ pub fn read_dns_question<'b>(buf: &'b [u8], idx: &mut usize) -> Result<Question<
 pub fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut usize) -> Result<ResourceRecord<'b>, errors::ReadError> {
     let mut r = ResourceRecord {
         rname: try!(read_dns_name(buf, idx)),
-        rtype: Type::A,
-        rclass: Class::IN,
+        rtype: Type::A as u16,
+        rclass: Class::IN as u16,
         rttl: 0,
         rdlen: 0,
         rdata: *idx,
@@ -298,8 +298,8 @@ pub fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut usize) -> Result<Re
     if *idx + 10 >= buf.len() {
         return Err(errors::ReadError::IndexOutOfRangeError(*idx + 10, buf.len()));
     }
-    r.rtype = try!(Type::from_u16(_read_be_u16(buf, idx)));
-    r.rclass = try!(Class::from_u16(_read_be_u16(buf, idx)));
+    r.rtype = _read_be_u16(buf, idx);
+    r.rclass = _read_be_u16(buf, idx);
     r.rttl = _read_be_i32(buf, idx);
     r.rdlen = _read_be_u16(buf, idx);
     r.rdata = *idx;
