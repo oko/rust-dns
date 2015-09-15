@@ -201,7 +201,7 @@ fn test_read_dns_message() {
     assert_eq!(m.flags, 0x8000);
 
     let q = m.questions[0].clone();
-    assert_eq!(format!("{}",q.qname).as_str(), "net.");
+    assert_eq!(format!("{}",q.qname), "net.");
 
     check_std_response_norecurse(&m, 1, 0, 13, 15);
 
@@ -210,19 +210,19 @@ fn test_read_dns_message() {
         assert_eq!(a.rttl, 172800);
 
         let n = Name::from_rdata(a).ok().unwrap().to_string();
-        if n.as_str() == "a.gtld-servers.net." { a_ct += 1; }
-        if n.as_str() == "b.gtld-servers.net." { a_ct += 1; }
-        if n.as_str() == "c.gtld-servers.net." { a_ct += 1; }
-        if n.as_str() == "d.gtld-servers.net." { a_ct += 1; }
-        if n.as_str() == "e.gtld-servers.net." { a_ct += 1; }
-        if n.as_str() == "f.gtld-servers.net." { a_ct += 1; }
-        if n.as_str() == "g.gtld-servers.net." { a_ct += 1; }
-        if n.as_str() == "h.gtld-servers.net." { a_ct += 1; }
-        if n.as_str() == "i.gtld-servers.net." { a_ct += 1; }
-        if n.as_str() == "j.gtld-servers.net." { a_ct += 1; }
-        if n.as_str() == "k.gtld-servers.net." { a_ct += 1; }
-        if n.as_str() == "l.gtld-servers.net." { a_ct += 1; }
-        if n.as_str() == "m.gtld-servers.net." { a_ct += 1; }
+        if n == "a.gtld-servers.net." { a_ct += 1; }
+        if n == "b.gtld-servers.net." { a_ct += 1; }
+        if n == "c.gtld-servers.net." { a_ct += 1; }
+        if n == "d.gtld-servers.net." { a_ct += 1; }
+        if n == "e.gtld-servers.net." { a_ct += 1; }
+        if n == "f.gtld-servers.net." { a_ct += 1; }
+        if n == "g.gtld-servers.net." { a_ct += 1; }
+        if n == "h.gtld-servers.net." { a_ct += 1; }
+        if n == "i.gtld-servers.net." { a_ct += 1; }
+        if n == "j.gtld-servers.net." { a_ct += 1; }
+        if n == "k.gtld-servers.net." { a_ct += 1; }
+        if n == "l.gtld-servers.net." { a_ct += 1; }
+        if n == "m.gtld-servers.net." { a_ct += 1; }
     }
     assert_eq!(a_ct, 13);
 }
