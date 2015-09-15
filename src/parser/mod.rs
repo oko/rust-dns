@@ -11,4 +11,5 @@ pub use super::parser::util::{_read_be_u16,_read_be_i32};
 mod errors;
 mod message;
 mod util;
+#[cfg(test)]
 mod tests;
