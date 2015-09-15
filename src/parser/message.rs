@@ -293,7 +293,7 @@ pub fn read_dns_resource_record<'b>(buf: &'b [u8], idx: &mut usize) -> Result<Re
         context: buf,
     };
     // Check bounds before reading fixed-length RR data
-    if *idx + 10 >= buf.len() {
+    if *idx + 10 > buf.len() {
         return Err(errors::ReadError::IndexOutOfRangeError(*idx + 10, buf.len()));
     }
     r.rtype = try!(Type::from_u16(_read_be_u16(buf, idx)));
